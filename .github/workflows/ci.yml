@@ -64,10 +64,12 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # Java 21, not 17. compileSdk 36 requires it — Robolectric refuses to
+      # run against SDK 36 on Java 17, and AGP 9 expects 21 as well.
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
 
       - uses: subosito/flutter-action@v2
         with:
@@ -89,12 +91,19 @@ jobs:
       - name: Build debug APK
         run: flutter build apk --debug
 
-      # Passes trivially until Phase 3 adds the mapper tests. Wiring it up now
-      # means the job is already proven when the first test lands.
+      # `:app:` matters. A bare `./gradlew testDebugUnitTest` runs the task in
+      # EVERY subproject, which on a Flutter app means every plugin's own test
+      # suite — image_picker, sqflite, jni and the rest. Those are other
+      # people's tests: they are already run in those projects' CI, they tell
+      # us nothing about this app, and when one of them fails it fails our
+      # build for a reason we cannot fix.
+      #
+      # Scoped to :app, this reports NO-SOURCE until Phase 3 adds
+      # ReceiptTextMapperTest, then runs exactly our Kotlin tests.
       - name: Kotlin unit tests
         if: ${{ !cancelled() }}
         working-directory: android
-        run: ./gradlew testDebugUnitTest
+        run: ./gradlew :app:testDebugUnitTest
 
       - name: Upload APK
         if: ${{ !cancelled() }}
