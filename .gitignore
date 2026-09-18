@@ -1,0 +1,32 @@
+# Flutter / Dart
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+pubspec.lock
+
+# Coverage
+coverage/
+
+# Android
+android/.gradle/
+android/local.properties
+android/app/debug/
+android/app/profile/
+android/app/release/
+*.iml
+
+# Signing — never commit these. See docs/decisions/0005-no-secrets-in-repo.md
+android/key.properties
+*.jks
+*.keystore
+**/upload-keystore.jks
+
+# IDE
+.idea/
+.vscode/
+*.swp
+.DS_Store
