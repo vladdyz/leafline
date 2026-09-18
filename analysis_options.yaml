@@ -35,7 +35,8 @@ linter:
     avoid_double_and_int_checks: true
 
     # Style, kept minimal — these are the ones that actually aid reading.
-    always_use_package_imports: true
+    # always_use_package_imports: removed — see docs/decisions/0008
+    # Test helpers live outside lib/ and cannot be imported via package: URIs.
     avoid_relative_lib_imports: true
     directives_ordering: true
     prefer_const_constructors: true
