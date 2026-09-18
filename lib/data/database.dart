@@ -1,6 +1,5 @@
-import 'package:sqflite/sqflite.dart';
-
 import 'package:receipt_tracker/models/budget.dart';
+import 'package:sqflite/sqflite.dart';
 
 /// Opens and owns the sqflite database.
 ///

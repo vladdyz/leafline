@@ -90,10 +90,7 @@ void main() {
 
     test('rejects a duplicate id', () async {
       await expenses.insert(makeExpense(id: 'a'));
-      expect(
-        () => expenses.insert(makeExpense(id: 'a')),
-        throwsA(anything),
-      );
+      expect(() => expenses.insert(makeExpense(id: 'a')), throwsA(anything));
     });
 
     test('updates an existing row', () async {
@@ -170,10 +167,7 @@ void main() {
 
     test('forWeek includes Monday through Sunday', () async {
       final result = await expenses.forWeek(DateTime(2026, 9, 17));
-      expect(
-        result.map((e) => e.id).toSet(),
-        <String>{'mon', 'wed', 'sun'},
-      );
+      expect(result.map((e) => e.id).toSet(), <String>{'mon', 'wed', 'sun'});
     });
 
     test('forWeek excludes the following Monday', () async {
@@ -210,10 +204,18 @@ void main() {
 
     test('excludes other weeks from the total', () async {
       await expenses.insert(
-        makeExpense(id: 'in', amountCents: 1000, spentOn: DateTime(2026, 9, 20)),
+        makeExpense(
+          id: 'in',
+          amountCents: 1000,
+          spentOn: DateTime(2026, 9, 20),
+        ),
       );
       await expenses.insert(
-        makeExpense(id: 'out', amountCents: 9999, spentOn: DateTime(2026, 9, 21)),
+        makeExpense(
+          id: 'out',
+          amountCents: 9999,
+          spentOn: DateTime(2026, 9, 21),
+        ),
       );
       expect(await expenses.totalCentsForWeek(DateTime(2026, 9, 17)), 1000);
     });
@@ -264,39 +266,47 @@ void main() {
       expect(await expenses.referencedPhotoFiles(), <String>{'a.jpg', 'c.jpg'});
     });
 
-    test('clearPhotosOlderThan nulls old photos and keeps the expense',
-        () async {
-      await expenses.insert(
-        makeExpense(
-          id: 'old',
-          amountCents: 777,
-          spentOn: DateTime(2026, 1, 5),
-          photoFile: 'old.jpg',
-          ocrRawText: 'TOTAL 7.77',
-        ),
-      );
-      await expenses.insert(
-        makeExpense(
-          id: 'new',
-          spentOn: DateTime(2026, 9, 17),
-          photoFile: 'new.jpg',
-        ),
-      );
+    test(
+      'clearPhotosOlderThan nulls old photos and keeps the expense',
+      () async {
+        await expenses.insert(
+          makeExpense(
+            id: 'old',
+            amountCents: 777,
+            spentOn: DateTime(2026, 1, 5),
+            photoFile: 'old.jpg',
+            ocrRawText: 'TOTAL 7.77',
+          ),
+        );
+        await expenses.insert(
+          makeExpense(
+            id: 'new',
+            spentOn: DateTime(2026, 9, 17),
+            photoFile: 'new.jpg',
+          ),
+        );
 
-      final cleared = await expenses.clearPhotosOlderThan(DateTime(2026, 6, 1));
-      expect(cleared, 1);
+        final cleared = await expenses.clearPhotosOlderThan(
+          DateTime(2026, 6, 1),
+        );
+        expect(cleared, 1);
 
-      final old = (await expenses.getById('old'))!;
-      expect(old.photoFile, isNull);
-      expect(old.amountCents, 777);
-      expect(old.ocrRawText, 'TOTAL 7.77');
+        final old = (await expenses.getById('old'))!;
+        expect(old.photoFile, isNull);
+        expect(old.amountCents, 777);
+        expect(old.ocrRawText, 'TOTAL 7.77');
 
-      expect((await expenses.getById('new'))!.photoFile, 'new.jpg');
-    });
+        expect((await expenses.getById('new'))!.photoFile, 'new.jpg');
+      },
+    );
 
     test('clearPhotosOlderThan reports zero when nothing qualifies', () async {
       await expenses.insert(
-        makeExpense(id: 'a', spentOn: DateTime(2026, 9, 17), photoFile: 'a.jpg'),
+        makeExpense(
+          id: 'a',
+          spentOn: DateTime(2026, 9, 17),
+          photoFile: 'a.jpg',
+        ),
       );
       expect(await expenses.clearPhotosOlderThan(DateTime(2026, 1, 1)), 0);
     });
@@ -344,10 +354,7 @@ void main() {
     });
 
     test('rejects a negative budget', () async {
-      expect(
-        () => budgets.setWeeklyCents(-1),
-        throwsA(isA<ArgumentError>()),
-      );
+      expect(() => budgets.setWeeklyCents(-1), throwsA(isA<ArgumentError>()));
     });
 
     test('clear returns to unset', () async {

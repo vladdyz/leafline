@@ -16,11 +16,10 @@ class ImageStore {
   static const String extension = '.jpg';
 
   /// Ensures the backing directory exists. Safe to call repeatedly.
-  Future<void> ensureReady() async {
-    if (!await directory.exists()) {
-      await directory.create(recursive: true);
-    }
-  }
+  ///
+  /// `create(recursive: true)` is already a no-op when the directory is
+  /// there, so checking first would just be an extra syscall.
+  Future<void> ensureReady() => directory.create(recursive: true);
 
   /// Writes [bytes] under [id] and returns the filename to store on the row.
   ///
@@ -39,19 +38,29 @@ class ImageStore {
   /// a missing file is an expected state after retention expiry, not an error.
   File fileFor(String filename) => File('${directory.path}/$filename');
 
-  Future<bool> exists(String filename) => fileFor(filename).exists();
+  /// Whether a stored photo is still on disk.
+  ///
+  /// Synchronous on purpose. `File.exists()` is a single `stat` dispatched to
+  /// the IO thread pool, which costs more than the syscall it wraps —
+  /// `existsSync` is the faster call despite looking like the blunt one.
+  bool exists(String filename) => fileFor(filename).existsSync();
 
   /// Deletes a stored photo. A file that is already gone is not an error.
+  ///
+  /// Deleting and catching, rather than checking then deleting, also closes
+  /// the gap between the two calls where a sweep running concurrently could
+  /// remove the file and turn the delete into an exception.
   Future<void> delete(String filename) async {
-    final file = fileFor(filename);
-    if (await file.exists()) {
-      await file.delete();
+    try {
+      await fileFor(filename).delete();
+    } on FileSystemException {
+      // Already gone, which is the outcome we wanted.
     }
   }
 
   /// Every photo filename currently on disk.
   Future<Set<String>> listFilenames() async {
-    if (!await directory.exists()) return <String>{};
+    if (!directory.existsSync()) return <String>{};
     final entries = await directory.list().toList();
     return entries
         .whereType<File>()
@@ -82,7 +91,7 @@ class ImageStore {
   ///
   /// Shown in Settings so the number is visible before it becomes a problem.
   Future<int> totalBytes() async {
-    if (!await directory.exists()) return 0;
+    if (!directory.existsSync()) return 0;
     var total = 0;
     await for (final entity in directory.list()) {
       if (entity is File && entity.path.endsWith(extension)) {

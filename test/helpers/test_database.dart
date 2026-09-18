@@ -1,8 +1,7 @@
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
-
 import 'package:receipt_tracker/data/database.dart';
 import 'package:receipt_tracker/models/expense.dart';
 import 'package:receipt_tracker/util/budget_rules.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 /// Initialises the FFI sqflite backend.
 ///

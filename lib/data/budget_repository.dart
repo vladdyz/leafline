@@ -1,9 +1,8 @@
 import 'dart:async';
 
-import 'package:sqflite/sqflite.dart';
-
 import 'package:receipt_tracker/data/database.dart';
 import 'package:receipt_tracker/models/budget.dart';
+import 'package:sqflite/sqflite.dart';
 
 /// Reads and writes the single weekly budget row.
 class BudgetRepository {
@@ -46,10 +45,7 @@ class BudgetRepository {
       throw ArgumentError.value(cents, 'cents', 'Budget cannot be negative');
     }
 
-    final budget = Budget(
-      weeklyCents: cents,
-      updatedAt: now ?? DateTime.now(),
-    );
+    final budget = Budget(weeklyCents: cents, updatedAt: now ?? DateTime.now());
 
     await _db.insert(
       AppDatabase.budgetsTable,

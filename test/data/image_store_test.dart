@@ -14,7 +14,7 @@ void main() {
   });
 
   tearDown(() async {
-    if (await temp.exists()) {
+    if (temp.existsSync()) {
       await temp.delete(recursive: true);
     }
   });
@@ -25,13 +25,13 @@ void main() {
     test('writes a file named after the id', () async {
       final filename = await store.save('abc', bytes);
       expect(filename, 'abc.jpg');
-      expect(await store.exists(filename), isTrue);
+      expect(store.exists(filename), isTrue);
     });
 
     test('creates the directory if it is missing', () async {
       await temp.delete(recursive: true);
       final filename = await store.save('abc', bytes);
-      expect(await store.exists(filename), isTrue);
+      expect(store.exists(filename), isTrue);
     });
 
     test('round-trips the bytes', () async {
@@ -49,7 +49,7 @@ void main() {
       // Callers handle absence themselves — a missing photo is an expected
       // state after retention expiry, not an error.
       expect(store.fileFor('nothing.jpg').path, contains('nothing.jpg'));
-      expect(await store.exists('nothing.jpg'), isFalse);
+      expect(store.exists('nothing.jpg'), isFalse);
     });
   });
 
@@ -57,7 +57,7 @@ void main() {
     test('removes the file', () async {
       final filename = await store.save('abc', bytes);
       await store.delete(filename);
-      expect(await store.exists(filename), isFalse);
+      expect(store.exists(filename), isFalse);
     });
 
     test('deleting a missing file is not an error', () async {
@@ -115,15 +115,17 @@ void main() {
       await store.save('orphan', bytes);
 
       expect(await store.sweepOrphans(<String>{'kept.jpg'}), 1);
-      expect(await store.exists('kept.jpg'), isTrue);
-      expect(await store.exists('orphan.jpg'), isFalse);
+      expect(store.exists('kept.jpg'), isTrue);
+      expect(store.exists('orphan.jpg'), isFalse);
     });
 
-    test('a referenced file that is missing from disk is not an error',
-        () async {
-      // The other direction of the same mismatch: a row pointing at a file
-      // that is gone. The sweep must not care.
-      expect(await store.sweepOrphans(<String>{'missing.jpg'}), 0);
-    });
+    test(
+      'a referenced file that is missing from disk is not an error',
+      () async {
+        // The other direction of the same mismatch: a row pointing at a file
+        // that is gone. The sweep must not care.
+        expect(await store.sweepOrphans(<String>{'missing.jpg'}), 0);
+      },
+    );
   });
 }

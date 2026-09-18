@@ -1,10 +1,9 @@
 import 'dart:async';
 
-import 'package:sqflite/sqflite.dart';
-
 import 'package:receipt_tracker/data/database.dart';
 import 'package:receipt_tracker/models/expense.dart';
 import 'package:receipt_tracker/util/week_math.dart';
+import 'package:sqflite/sqflite.dart';
 
 /// Reads and writes expenses.
 ///
@@ -151,10 +150,11 @@ class ExpenseRepository {
       totals[week] = (totals[week] ?? 0) + (row['amount_cents']! as int);
     }
 
-    final result = totals.entries
-        .map((e) => WeekTotal(weekStart: e.key, totalCents: e.value))
-        .toList()
-      ..sort((a, b) => b.weekStart.compareTo(a.weekStart));
+    final result =
+        totals.entries
+            .map((e) => WeekTotal(weekStart: e.key, totalCents: e.value))
+            .toList()
+          ..sort((a, b) => b.weekStart.compareTo(a.weekStart));
     return result;
   }
 

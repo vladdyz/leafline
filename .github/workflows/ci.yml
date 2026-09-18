@@ -15,7 +15,7 @@ jobs:
     name: Analyze and test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: subosito/flutter-action@v2
         with:
@@ -31,16 +31,27 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      # Each of the three checks below runs even if an earlier one failed, so
+      # one push surfaces every problem instead of one problem per push. The
+      # job still fails overall if any of them do.
+      #
+      # Without this, a formatting failure hides whether analysis and the
+      # tests would have passed — which is exactly what happened the first
+      # time this workflow ran against real code.
       - name: Check formatting
+        if: ${{ !cancelled() }}
         run: dart format --set-exit-if-changed .
 
       - name: Analyze
+        if: ${{ !cancelled() }}
         run: flutter analyze --fatal-infos
 
       - name: Test
+        if: ${{ !cancelled() }}
         run: flutter test --coverage
 
       - name: Upload coverage
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
           name: coverage
@@ -51,9 +62,9 @@ jobs:
     name: Kotlin tests and APK
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
@@ -66,16 +77,27 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      # Passes trivially until Phase 3 adds the mapper tests. Wiring it up
-      # now means the job is already proven when the first test lands.
-      - name: Kotlin unit tests
-        working-directory: android
-        run: ./gradlew testDebugUnitTest
-
+      # This MUST come before any ./gradlew call.
+      #
+      # `flutter create` writes an android/.gitignore that excludes gradlew,
+      # gradlew.bat and gradle-wrapper.jar, so none of them are in the repo —
+      # a fresh CI checkout has no wrapper to run. It also excludes
+      # local.properties, which Gradle needs for flutter.sdk and sdk.dir.
+      #
+      # The Flutter tool generates all of it as part of an Android build. So
+      # building first is what makes ./gradlew exist and work at all.
       - name: Build debug APK
         run: flutter build apk --debug
 
+      # Passes trivially until Phase 3 adds the mapper tests. Wiring it up now
+      # means the job is already proven when the first test lands.
+      - name: Kotlin unit tests
+        if: ${{ !cancelled() }}
+        working-directory: android
+        run: ./gradlew testDebugUnitTest
+
       - name: Upload APK
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
           name: app-debug
