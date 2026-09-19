@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:receipt_tracker/data/database.dart';
 import 'package:receipt_tracker/data/expense_repository.dart';
 import 'package:receipt_tracker/data/week_budget_repository.dart';
-//import 'package:receipt_tracker/ui/screens/all_weeks_screen.dart';
+import 'package:receipt_tracker/ui/screens/all_weeks_screen.dart';
 import 'package:receipt_tracker/ui/screens/settings_screen.dart';
 import 'package:receipt_tracker/ui/screens/week_list_screen.dart';
 import 'package:receipt_tracker/ui/widgets/budget_bar.dart';
@@ -315,14 +315,20 @@ void main() {
 
   group('AllWeeksScreen', () {
     // The history rows sit below two section headers and four upcoming rows.
-    // At the default 800x600 test surface that content runs past the bottom
-    // of the viewport as soon as there are two of them, so the second row —
-    // which is the one these tests assert on — is never built. A taller
-    // surface keeps the assertions about content rather than scroll position.
+    // At the default 800x600 surface that content runs past the bottom of the
+    // viewport once there are two of them, so the second row — the one these
+    // tests assert on — is never built. A taller surface keeps the assertions
+    // about content rather than scroll position.
     Future<void> pumpAllWeeks(WidgetTester tester) async {
       await tester.binding.setSurfaceSize(const Size(800, 1600));
       addTearDown(() => tester.binding.setSurfaceSize(null));
-      await pumpAllWeeks(tester);
+      await pumpApp(
+        tester,
+        home: const AllWeeksScreen(),
+        database: database,
+        documents: documents,
+        now: now,
+      );
     }
 
     testWidgets('lists tracked weeks with their verdicts', (tester) async {

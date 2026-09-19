@@ -33,8 +33,15 @@ Widget testApp({
   );
 }
 
-/// Pumps [home] and settles, which the async providers need before anything
-/// is on screen.
+/// How long a screen gets to reach a steady state before the test gives up.
+///
+/// `pumpAndSettle` defaults to ten minutes, which is not a timeout so much as
+/// a way to lose an afternoon. Every screen here resolves two queries against
+/// in-memory SQLite; ten seconds is generous, and when it is exceeded the
+/// failure names the test rather than stalling the run.
+const Duration _settleTimeout = Duration(seconds: 10);
+
+/// Pumps [home] and settles.
 Future<void> pumpApp(
   WidgetTester tester, {
   required Widget home,
@@ -45,5 +52,9 @@ Future<void> pumpApp(
   await tester.pumpWidget(
     testApp(home: home, database: database, documents: documents, now: now),
   );
-  await tester.pumpAndSettle();
+  await tester.pumpAndSettle(
+    const Duration(milliseconds: 100),
+    EnginePhase.sendSemanticsUpdate,
+    _settleTimeout,
+  );
 }
