@@ -128,8 +128,15 @@ final weekHistoryProvider = FutureProvider<List<WeekSummary>>((ref) async {
 
   final now = ref.watch(nowProvider)();
   final currentWeek = weekStart(now);
-  final weeks = await ref.watch(weekBudgetRepositoryProvider).all();
-  final totals = await ref.watch(expenseRepositoryProvider).weekTotals();
+  // Both repositories are resolved before the first await. Reading a provider
+  // after one suspends this body is how a dependency quietly goes untracked —
+  // it happened to work here, but the other providers in this file all hoist
+  // their reads and this one should match them.
+  final weekRepository = ref.watch(weekBudgetRepositoryProvider);
+  final expenseRepository = ref.watch(expenseRepositoryProvider);
+
+  final weeks = await weekRepository.all();
+  final totals = await expenseRepository.weekTotals();
 
   final totalByWeek = <DateTime, int>{
     for (final total in totals) total.weekStart: total.totalCents,
