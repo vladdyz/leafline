@@ -93,3 +93,71 @@ enum ExpenseCategory {
     return ExpenseCategory.custom;
   }
 }
+
+/// How a week turned out.
+///
+/// Four states, not two. The two that are easy to forget are the ones that
+/// make the history honest.
+enum WeekOutcome {
+  /// The app was not tracking this week. No budget row exists for it.
+  ///
+  /// This is what every week before the user's first day must be, and it is
+  /// why the calendar does not stretch back to 1970 painted green. It is not
+  /// a verdict — it is the absence of one.
+  untracked,
+
+  /// Tracked, but no budget figure was set, so there is nothing to be under
+  /// or over. Spending is recorded; no judgement is made.
+  noBudget,
+
+  /// The current week, still running. Its verdict is not in yet.
+  ///
+  /// Kept distinct from [under] deliberately: a week sitting at 40% on Tuesday
+  /// has not succeeded at anything, and painting it green would be telling
+  /// the user they have won a race they are still running.
+  inProgress,
+
+  /// Finished, and spending stayed within the budget.
+  under,
+
+  /// Finished, and spending passed the budget.
+  over,
+}
+
+/// Classifies a week for the history view.
+///
+/// Takes primitives rather than a model so it stays pure and testable, and so
+/// `budget_rules.dart` keeps no dependency on the data layer.
+///
+/// Note what is absent: there is no "approaching" outcome. The 80% warning is
+/// a live signal meant to change what you do next, and it has no meaning once
+/// the week is over — a week that finished at 85% stayed within budget and
+/// counts as a success. Carrying amber into the history would turn good weeks
+/// into near-misses.
+WeekOutcome weekOutcomeFor({
+  required bool isTracked,
+  required bool isCurrentWeek,
+  required int budgetCents,
+  required int spentCents,
+}) {
+  if (!isTracked) return WeekOutcome.untracked;
+  if (isCurrentWeek) return WeekOutcome.inProgress;
+  if (budgetCents <= 0) return WeekOutcome.noBudget;
+  return spentCents > budgetCents ? WeekOutcome.over : WeekOutcome.under;
+}
+
+/// Whether a week finished within its budget.
+///
+/// Note `>` rather than `>=`: spending exactly the budget is staying within
+/// it. This differs from [budgetStateFor], where hitting the budget flips the
+/// live bar to its warning colour — a deliberate mismatch. While the week is
+/// running, landing exactly on the number means the next purchase puts you
+/// over, which is worth flagging. Once it is finished, exact means you made
+/// it.
+bool weekStayedWithinBudget({
+  required int budgetCents,
+  required int spentCents,
+}) {
+  if (budgetCents <= 0) return true;
+  return spentCents <= budgetCents;
+}
