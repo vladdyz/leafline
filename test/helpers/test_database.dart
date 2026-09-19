@@ -18,10 +18,19 @@ void initTestDatabase() {
 /// Opens a fresh in-memory database.
 ///
 /// Each call gets its own, so tests cannot leak state into one another.
+///
+/// Note the factory: `databaseFactoryFfiNoIsolate`, not `databaseFactoryFfi`.
+/// The default runs SQLite in a background isolate, which works under plain
+/// `test()` but not under `testWidgets()` — the widget-test binding controls
+/// time, and replies from a real isolate never arrive, so every query hangs
+/// until `pumpAndSettle` gives up. sqflite's own testing docs specify the
+/// no-isolate factory for widget tests for exactly this reason.
+///
+/// It works for both kinds of test, so it is used for both.
 Future<AppDatabase> openTestDatabase() {
   return AppDatabase.open(
     path: inMemoryDatabasePath,
-    factory: databaseFactoryFfi,
+    factory: databaseFactoryFfiNoIsolate,
   );
 }
 
