@@ -292,25 +292,28 @@ void main() {
   });
 
   group('moving an expense between weeks', () {
-    testWidgets('warns before saving only if target date falls on a different week', (tester) async {
-      await weekBudgets.setDefaultWeeklyCents(20000, now: now);
-      await weekBudgets.ensureWeek(thisWeek, now: now);
-      await expenses.insert(
-        makeExpense(
-          id: 'm',
-          amountCents: 1000,
-          spentOn: DateTime(2026, 9, 17),
-          merchant: 'Mover',
-        ),
-      );
+    testWidgets(
+      'warns before saving only if target date falls on a different week',
+      (tester) async {
+        await weekBudgets.setDefaultWeeklyCents(20000, now: now);
+        await weekBudgets.ensureWeek(thisWeek, now: now);
+        await expenses.insert(
+          makeExpense(
+            id: 'm',
+            amountCents: 1000,
+            spentOn: DateTime(2026, 9, 17),
+            merchant: 'Mover',
+          ),
+        );
 
-      await pumpList(tester);
-      await tester.tap(find.text('Mover'));
-      await tester.pumpAndSettle();
+        await pumpList(tester);
+        await tester.tap(find.text('Mover'));
+        await tester.pumpAndSettle();
 
-      // No warning while the date is unchanged.
-      expect(find.textContaining('Saving moves this expense'), findsNothing);
-    });
+        // No warning while the date is unchanged.
+        expect(find.textContaining('Saving moves this expense'), findsNothing);
+      },
+    );
   });
 
   group('AllWeeksScreen', () {
