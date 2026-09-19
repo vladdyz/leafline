@@ -8,6 +8,7 @@ import 'package:receipt_tracker/data/expense_repository.dart';
 import 'package:receipt_tracker/ui/screens/settings_screen.dart';
 import 'package:receipt_tracker/ui/screens/week_list_screen.dart';
 import 'package:receipt_tracker/ui/widgets/budget_bar.dart';
+import 'package:receipt_tracker/ui/widgets/expense_tile.dart';
 import 'package:receipt_tracker/util/budget_rules.dart';
 
 import '../helpers/test_app.dart';
@@ -133,9 +134,17 @@ void main() {
     testWidgets('groups into two weeks with separate totals', (tester) async {
       await pumpList(tester);
 
-      // Current week total, and the previous week's, as header amounts.
-      expect(find.text(r'$164.00'), findsOneWidget);
-      expect(find.text(r'$30.00'), findsOneWidget);
+      // Scoped to the header rather than a bare find.text: the old week has a
+      // single $30 expense, so its total and its only tile render the same
+      // string. A bare finder matches both and says nothing about grouping.
+      Finder headerTotal(String amount) => find.descendant(
+        of: find.byType(WeekHeader),
+        matching: find.text(amount),
+      );
+
+      expect(headerTotal(r'$164.00'), findsOneWidget);
+      expect(headerTotal(r'$30.00'), findsOneWidget);
+      expect(find.byType(WeekHeader), findsNWidgets(2));
     });
 
     testWidgets('shows a budget bar per week', (tester) async {
@@ -145,10 +154,7 @@ void main() {
 
     testWidgets('budget bar reports the approaching state', (tester) async {
       await pumpList(tester);
-      expect(
-        find.text(r'$164.00 of $200 — $36.00 left'),
-        findsOneWidget,
-      );
+      expect(find.text(r'$164.00 of $200 — $36.00 left'), findsOneWidget);
     });
 
     testWidgets('tapping an expense opens it for editing', (tester) async {

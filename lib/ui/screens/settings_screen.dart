@@ -42,9 +42,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
     if (!mounted) return;
     setState(() => _saving = false);
-    messenger.showSnackBar(
-      const SnackBar(content: Text('Budget saved')),
-    );
+    messenger.showSnackBar(const SnackBar(content: Text('Budget saved')));
   }
 
   @override

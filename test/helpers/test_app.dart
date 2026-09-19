@@ -23,10 +23,7 @@ Widget testApp({
       appDatabaseProvider.overrideWithValue(database),
       documentsDirectoryProvider.overrideWithValue(documents),
     ],
-    child: MaterialApp(
-      theme: HarvestTheme.light(),
-      home: home,
-    ),
+    child: MaterialApp(theme: HarvestTheme.light(), home: home),
   );
 }
 

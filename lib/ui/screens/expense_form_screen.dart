@@ -109,9 +109,8 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
     } catch (error) {
       if (!mounted) return;
       setState(() => _saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not save: $error')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Could not save: $error')));
     }
   }
 

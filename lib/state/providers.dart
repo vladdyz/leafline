@@ -80,10 +80,13 @@ List<WeekGroup> groupIntoWeeks(List<Expense> expenses) {
     byWeek.putIfAbsent(expense.week, () => <Expense>[]).add(expense);
   }
 
-  final groups = byWeek.entries
-      .map((entry) => WeekGroup(weekStart: entry.key, expenses: entry.value))
-      .toList()
-    ..sort((a, b) => b.weekStart.compareTo(a.weekStart));
+  final groups =
+      byWeek.entries
+          .map(
+            (entry) => WeekGroup(weekStart: entry.key, expenses: entry.value),
+          )
+          .toList()
+        ..sort((a, b) => b.weekStart.compareTo(a.weekStart));
   return groups;
 }
 

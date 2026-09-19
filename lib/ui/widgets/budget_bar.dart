@@ -38,7 +38,10 @@ class BudgetBar extends StatelessWidget {
       budgetCents: budgetCents,
     );
     final color = budgetColor(context, state);
-    final message = budgetMessage(spentCents: spentCents, budgetCents: budgetCents);
+    final message = budgetMessage(
+      spentCents: spentCents,
+      budgetCents: budgetCents,
+    );
 
     return Semantics(
       label: message,
@@ -61,9 +64,8 @@ class BudgetBar extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             message,
-            style: HarvestTheme.money(
-              theme.textTheme.bodyMedium,
-            ).copyWith(color: color),
+            style: HarvestTheme.money(theme.textTheme.bodyMedium)
+                .copyWith(color: color),
           ),
         ],
       ),
@@ -80,7 +82,10 @@ String budgetMessage({required int spentCents, required int budgetCents}) {
     return '${formatCents(spentCents)} spent — no budget set';
   }
 
-  final state = budgetStateFor(spentCents: spentCents, budgetCents: budgetCents);
+  final state = budgetStateFor(
+    spentCents: spentCents,
+    budgetCents: budgetCents,
+  );
   final of = '${formatCents(spentCents)} of ${formatCentsCompact(budgetCents)}';
 
   switch (state) {

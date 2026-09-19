@@ -24,18 +24,14 @@ class WeekListScreen extends ConsumerWidget {
             icon: const Icon(Icons.settings_outlined),
             tooltip: 'Settings',
             onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => const SettingsScreen(),
-              ),
+              MaterialPageRoute<void>(builder: (_) => const SettingsScreen()),
             ),
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (_) => const ExpenseFormScreen(),
-          ),
+          MaterialPageRoute<void>(builder: (_) => const ExpenseFormScreen()),
         ),
         icon: const Icon(Icons.add),
         label: const Text('Add'),
@@ -85,10 +81,7 @@ class _WeekSection extends StatelessWidget {
                 totalCents: group.totalCents,
               ),
               const SizedBox(height: 10),
-              BudgetBar(
-                spentCents: group.totalCents,
-                budgetCents: budgetCents,
-              ),
+              BudgetBar(spentCents: group.totalCents, budgetCents: budgetCents),
             ],
           ),
         ),
@@ -107,10 +100,10 @@ class _DismissibleExpense extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    // Resolved here rather than inside onDismissed: Riverpod 3 throws if a
-    // ref is used after its element is disposed, and onDismissed fires while
-    // this widget is being removed from the tree. The repository itself is a
-    // plain object and outlives the widget safely.
+    // Resolved here rather than inside the dismiss callback: Riverpod 3
+    // throws if a ref is used after its element is disposed, and that
+    // callback runs while this widget is being removed from the tree. The
+    // repository itself is a plain object and outlives the widget safely.
     final repository = ref.watch(expenseRepositoryProvider);
 
     return Dismissible(
@@ -125,7 +118,22 @@ class _DismissibleExpense extends ConsumerWidget {
           color: theme.colorScheme.onErrorContainer,
         ),
       ),
-      onDismissed: (_) async {
+      // The deletion happens here, in confirmDismiss, and this ALWAYS returns
+      // false. That reads backwards, so it is worth explaining.
+      //
+      // Returning true asks Dismissible to remove the widget, and Flutter
+      // then requires the parent to have removed it from the tree by the next
+      // build — otherwise it throws "A dismissed Dismissible widget is still
+      // part of the tree". But this list is rebuilt from a provider that
+      // re-queries the database, so removal is asynchronous: there is always
+      // at least one frame where the widget is dismissed and the list still
+      // contains it.
+      //
+      // Returning false instead means the row is deleted, the provider
+      // invalidates, and the rebuilt list simply no longer contains this
+      // expense. The snap-back animation never renders, because by the time
+      // it would, the widget is gone.
+      confirmDismiss: (_) async {
         // Captured before the await: using `context` afterwards would be
         // reaching across an async gap into a widget that may be gone.
         final messenger = ScaffoldMessenger.of(context);
@@ -142,10 +150,14 @@ class _DismissibleExpense extends ConsumerWidget {
                 // Re-inserting the original restores its id, timestamps and
                 // photo reference, so undo is a true reversal rather than a
                 // new expense that merely looks the same.
-                onPressed: () async => repository.insert(expense),
+                onPressed: () async {
+                  await repository.insert(expense);
+                },
               ),
             ),
           );
+
+        return false;
       },
       child: ExpenseTile(
         expense: expense,

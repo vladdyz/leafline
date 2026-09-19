@@ -84,7 +84,8 @@ class WeekHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final format = DateFormat.MMMd();
-    final range = '${format.format(weekStart)} \u2013 '
+    final range =
+        '${format.format(weekStart)} \u2013 '
         '${format.format(weekEndDate)}';
 
     return Row(
@@ -98,9 +99,8 @@ class WeekHeader extends StatelessWidget {
         ),
         Text(
           formatCents(totalCents),
-          style: HarvestTheme.money(
-            theme.textTheme.titleMedium,
-          ).copyWith(fontWeight: FontWeight.w600),
+          style: HarvestTheme.money(theme.textTheme.titleMedium)
+              .copyWith(fontWeight: FontWeight.w600),
         ),
       ],
     );

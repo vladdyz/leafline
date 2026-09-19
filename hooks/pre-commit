@@ -1,0 +1,14 @@
+#!/bin/sh
+# Blocks a commit whose Dart is not formatter-clean, which is exactly what
+# CI checks. Install with:
+#
+#   cp hooks/pre-commit .git/hooks/pre-commit
+#   chmod +x .git/hooks/pre-commit
+#
+# (Git Bash on Windows runs this fine.)
+
+if ! dart format --output=none --set-exit-if-changed . >/dev/null 2>&1; then
+  echo "Formatting check failed. Run:  dart format ." >&2
+  echo "Then stage the result and commit again." >&2
+  exit 1
+fi
