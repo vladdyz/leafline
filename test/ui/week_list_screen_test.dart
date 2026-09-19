@@ -292,7 +292,7 @@ void main() {
   });
 
   group('moving an expense between weeks', () {
-    testWidgets('warns before saving', (tester) async {
+    testWidgets('warns before saving only if target date falls on a different week', (tester) async {
       await weekBudgets.setDefaultWeeklyCents(20000, now: now);
       await weekBudgets.ensureWeek(thisWeek, now: now);
       await expenses.insert(
