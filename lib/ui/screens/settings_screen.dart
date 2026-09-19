@@ -38,7 +38,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     setState(() => _saving = true);
 
     final messenger = ScaffoldMessenger.of(context);
-    await ref.read(budgetRepositoryProvider).setWeeklyCents(cents);
+    // Goes through the week repository, not a separate budget one. Writing
+    // the default also updates the current week when that week has not been
+    // given its own figure — a second write path to the same row would skip
+    // that rule and quietly desynchronise the week in progress.
+    await ref.read(weekBudgetRepositoryProvider).setDefaultWeeklyCents(cents);
 
     if (!mounted) return;
     setState(() => _saving = false);
@@ -47,7 +51,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final budget = ref.watch(budgetProvider);
+    final budget = ref.watch(defaultBudgetProvider);
     final theme = Theme.of(context);
 
     // Seed the field once, the first time the stored budget arrives. Doing it
@@ -67,7 +71,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: <Widget>[
-            Text('Weekly budget', style: theme.textTheme.titleMedium),
+            Text('Default weekly budget', style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
             Text(
               'What you plan to spend in a week on everyday things — transit, '
@@ -106,7 +110,36 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               onPressed: _saving ? null : _save,
               child: const Text('Save budget'),
             ),
-            const Divider(height: 48),
+            const SizedBox(height: 16),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      'What this changes',
+                      style: theme.textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Every new week starts from this figure, and the week '
+                      'you are in now follows it too.\n\n'
+                      'Weeks that have already finished keep whatever budget '
+                      'they ran on. Changing this number never rewrites your '
+                      'history.\n\n'
+                      'To give one week its own budget — a holiday, say — open '
+                      'All weeks and pick it. The week after still starts from '
+                      'this default.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const Divider(height: 40),
             Text(
               'Warnings appear at $kApproachingPercent% of the budget and '
               'again when it is passed.',

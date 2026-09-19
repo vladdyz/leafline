@@ -2,24 +2,37 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:receipt_tracker/models/expense.dart';
 import 'package:receipt_tracker/state/providers.dart';
+import 'package:receipt_tracker/ui/screens/all_weeks_screen.dart';
 import 'package:receipt_tracker/ui/screens/expense_form_screen.dart';
 import 'package:receipt_tracker/ui/screens/settings_screen.dart';
 import 'package:receipt_tracker/ui/widgets/budget_bar.dart';
 import 'package:receipt_tracker/ui/widgets/expense_tile.dart';
+import 'package:receipt_tracker/ui/widgets/week_budget_sheet.dart';
 
-/// Home. Expenses grouped into weeks, newest first, each with its budget bar.
+/// Home. The last few tracked weeks, newest first.
+///
+/// Every tracked week appears, spending or not. A week with a budget and no
+/// expenses is the best outcome the app can report, and it now renders as one
+/// rather than vanishing.
 class WeekListScreen extends ConsumerWidget {
   const WeekListScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final groups = ref.watch(weekGroupsProvider);
-    final budget = ref.watch(budgetProvider);
+    final weeks = ref.watch(recentWeeksProvider);
+    final trackedCount = ref.watch(trackedWeekCountProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Harvest'),
         actions: <Widget>[
+          IconButton(
+            icon: const Icon(Icons.calendar_month_outlined),
+            tooltip: 'All weeks',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const AllWeeksScreen()),
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.settings_outlined),
             tooltip: 'Settings',
@@ -36,21 +49,24 @@ class WeekListScreen extends ConsumerWidget {
         icon: const Icon(Icons.add),
         label: const Text('Add'),
       ),
-      body: groups.when(
+      body: weeks.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, stack) => _ErrorView(error: error),
-        data: (weeks) {
-          if (weeks.isEmpty) return const _EmptyState();
-          final budgetCents = budget.value?.weeklyCents ?? 0;
+        data: (views) {
+          if (views.isEmpty) return const _NotStartedYet();
+
+          final hasArchive = (trackedCount.value ?? 0) > views.length;
 
           return ListView.builder(
             // Clears the floating action button, which would otherwise sit on
-            // top of the last expense in the list.
-            padding: const EdgeInsets.only(bottom: 88),
-            itemCount: weeks.length,
+            // top of the last row.
+            padding: const EdgeInsets.only(bottom: 96),
+            itemCount: views.length + (hasArchive ? 1 : 0),
             itemBuilder: (context, index) {
-              final week = weeks[index];
-              return _WeekSection(group: week, budgetCents: budgetCents);
+              if (index == views.length) {
+                return const _ArchiveLink();
+              }
+              return _WeekSection(view: views[index]);
             },
           );
         },
@@ -59,34 +75,69 @@ class WeekListScreen extends ConsumerWidget {
   }
 }
 
-class _WeekSection extends StatelessWidget {
-  const _WeekSection({required this.group, required this.budgetCents});
+class _WeekSection extends ConsumerWidget {
+  const _WeekSection({required this.view});
 
-  final WeekGroup group;
-  final int budgetCents;
+  final WeekView view;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+          padding: const EdgeInsets.fromLTRB(16, 20, 8, 8),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              WeekHeader(
-                weekStart: group.weekStart,
-                weekEndDate: group.weekEndDate,
-                totalCents: group.totalCents,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    WeekHeader(
+                      weekStart: view.weekStart,
+                      weekEndDate: view.weekEndDate,
+                      totalCents: view.totalCents,
+                    ),
+                    const SizedBox(height: 10),
+                    BudgetBar(
+                      spentCents: view.totalCents,
+                      budgetCents: view.budgetCents,
+                      isCurrentWeek: view.isCurrentWeek,
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 10),
-              BudgetBar(spentCents: group.totalCents, budgetCents: budgetCents),
+              IconButton(
+                icon: const Icon(Icons.tune, size: 20),
+                tooltip: 'Budget for this week',
+                onPressed: () => WeekBudgetSheet.show(
+                  context,
+                  weekStart: view.weekStart,
+                  currentCents: view.budgetCents,
+                  isOverride: view.budget.isOverride,
+                ),
+              ),
             ],
           ),
         ),
-        for (final expense in group.expenses)
-          _DismissibleExpense(expense: expense),
+        if (view.expenses.isEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Text(
+              view.isCurrentWeek
+                  ? 'Nothing logged yet this week.'
+                  : 'Nothing spent this week.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          )
+        else
+          for (final expense in view.expenses)
+            _DismissibleExpense(expense: expense),
       ],
     );
   }
@@ -100,10 +151,10 @@ class _DismissibleExpense extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    // Resolved here rather than inside the dismiss callback: Riverpod 3
-    // throws if a ref is used after its element is disposed, and that
-    // callback runs while this widget is being removed from the tree. The
-    // repository itself is a plain object and outlives the widget safely.
+    // Resolved here rather than inside the dismiss callback: Riverpod 3 throws
+    // if a ref is used after its element is disposed, and that callback runs
+    // while this widget is being removed from the tree. The repository itself
+    // is a plain object and outlives the widget safely.
     final repository = ref.watch(expenseRepositoryProvider);
 
     return Dismissible(
@@ -121,8 +172,8 @@ class _DismissibleExpense extends ConsumerWidget {
       // The deletion happens here, in confirmDismiss, and this ALWAYS returns
       // false. That reads backwards, so it is worth explaining.
       //
-      // Returning true asks Dismissible to remove the widget, and Flutter
-      // then requires the parent to have removed it from the tree by the next
+      // Returning true asks Dismissible to remove the widget, and Flutter then
+      // requires the parent to have removed it from the tree by the next
       // build — otherwise it throws "A dismissed Dismissible widget is still
       // part of the tree". But this list is rebuilt from a provider that
       // re-queries the database, so removal is asynchronous: there is always
@@ -131,13 +182,10 @@ class _DismissibleExpense extends ConsumerWidget {
       //
       // Returning false instead means the row is deleted, the provider
       // invalidates, and the rebuilt list simply no longer contains this
-      // expense. The snap-back animation never renders, because by the time
-      // it would, the widget is gone.
+      // expense. The snap-back animation never renders, because by the time it
+      // would, the widget is gone.
       confirmDismiss: (_) async {
-        // Captured before the await: using `context` afterwards would be
-        // reaching across an async gap into a widget that may be gone.
         final messenger = ScaffoldMessenger.of(context);
-
         await repository.delete(expense.id);
 
         messenger
@@ -147,9 +195,6 @@ class _DismissibleExpense extends ConsumerWidget {
               content: const Text('Expense deleted'),
               action: SnackBarAction(
                 label: 'Undo',
-                // Re-inserting the original restores its id, timestamps and
-                // photo reference, so undo is a true reversal rather than a
-                // new expense that merely looks the same.
                 onPressed: () async {
                   await repository.insert(expense);
                 },
@@ -171,8 +216,31 @@ class _DismissibleExpense extends ConsumerWidget {
   }
 }
 
-class _EmptyState extends StatelessWidget {
-  const _EmptyState();
+class _ArchiveLink extends StatelessWidget {
+  const _ArchiveLink();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: OutlinedButton.icon(
+        onPressed: () => Navigator.of(
+          context,
+        ).push(MaterialPageRoute<void>(builder: (_) => const AllWeeksScreen())),
+        icon: const Icon(Icons.history),
+        label: const Text('Earlier weeks'),
+      ),
+    );
+  }
+}
+
+/// Shown only before the very first week is tracked.
+///
+/// In practice this is almost never seen: the app materialises the current
+/// week at startup, so by the time a screen renders there is a week to show —
+/// with a budget bar, from day one, before anything has been logged.
+class _NotStartedYet extends StatelessWidget {
+  const _NotStartedYet();
 
   @override
   Widget build(BuildContext context) {
@@ -189,10 +257,10 @@ class _EmptyState extends StatelessWidget {
               color: theme.colorScheme.outline,
             ),
             const SizedBox(height: 16),
-            Text('No expenses yet', style: theme.textTheme.titleMedium),
+            Text('Getting your week ready', style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
             Text(
-              'Tap Add to log your first one.',
+              'Set a weekly budget in Settings to get started.',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
@@ -216,7 +284,7 @@ class _ErrorView extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Text(
-          'Could not load expenses.\n$error',
+          'Could not load your weeks.\n$error',
           textAlign: TextAlign.center,
         ),
       ),

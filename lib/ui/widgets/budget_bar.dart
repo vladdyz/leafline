@@ -3,7 +3,7 @@ import 'package:receipt_tracker/ui/theme.dart';
 import 'package:receipt_tracker/util/budget_rules.dart';
 import 'package:receipt_tracker/util/money.dart';
 
-/// Spending against the weekly budget.
+/// Spending against a week's budget.
 ///
 /// Renders a bar and a line of text. The text is not decoration — it carries
 /// the whole message on its own, for screen readers, for anyone who cannot
@@ -12,32 +12,55 @@ class BudgetBar extends StatelessWidget {
   const BudgetBar({
     required this.spentCents,
     required this.budgetCents,
+    required this.isCurrentWeek,
     super.key,
   });
 
   final int spentCents;
   final int budgetCents;
 
+  /// Which colour language to use.
+  ///
+  /// A running week gets the live one, amber included, because the 80% mark
+  /// is a signal meant to change what you do next. A finished week gets its
+  /// verdict instead — within budget or over — because a week that ended at
+  /// 85% succeeded and should not be rendered as a near-miss.
+  final bool isCurrentWeek;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
     if (budgetCents <= 0) {
+      final message = budgetMessage(
+        spentCents: spentCents,
+        budgetCents: budgetCents,
+      );
       return Semantics(
-        label: '${formatCents(spentCents)} spent, no budget set',
+        label: message,
         excludeSemantics: true,
         child: Text(
-          '${formatCents(spentCents)} spent — no budget set',
+          message,
           style: HarvestTheme.money(theme.textTheme.bodyMedium),
         ),
       );
     }
 
-    final state = budgetStateFor(
-      spentCents: spentCents,
-      budgetCents: budgetCents,
-    );
-    final color = budgetColor(context, state);
+    final color = isCurrentWeek
+        ? budgetColor(
+            context,
+            budgetStateFor(spentCents: spentCents, budgetCents: budgetCents),
+          )
+        : outcomeColor(
+            context,
+            weekOutcomeFor(
+              isTracked: true,
+              isCurrentWeek: false,
+              budgetCents: budgetCents,
+              spentCents: spentCents,
+            ),
+          );
+
     final message = budgetMessage(
       spentCents: spentCents,
       budgetCents: budgetCents,
@@ -102,5 +125,30 @@ String budgetMessage({required int spentCents, required int budgetCents}) {
         budgetCents: budgetCents,
       );
       return '$of — over by ${formatCents(over)}';
+  }
+}
+
+/// A small coloured pill naming a week's verdict.
+class OutcomeChip extends StatelessWidget {
+  const OutcomeChip({required this.outcome, super.key});
+
+  final WeekOutcome outcome;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = outcomeColor(context, outcome);
+    final label = outcomeLabel(outcome);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(color: color),
+      ),
+    );
   }
 }

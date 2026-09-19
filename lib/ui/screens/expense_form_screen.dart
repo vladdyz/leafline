@@ -6,6 +6,7 @@ import 'package:receipt_tracker/models/expense.dart';
 import 'package:receipt_tracker/state/providers.dart';
 import 'package:receipt_tracker/util/budget_rules.dart';
 import 'package:receipt_tracker/util/money.dart';
+import 'package:receipt_tracker/util/week_math.dart';
 import 'package:uuid/uuid.dart';
 
 /// Adds a new expense, or edits an existing one when [initial] is supplied.
@@ -34,6 +35,18 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
 
   bool get _isEditing => widget.initial != null;
 
+  /// True when the chosen date has moved the expense out of the week it was
+  /// filed under.
+  ///
+  /// Without surfacing this, correcting a date makes the expense disappear
+  /// from where the user was looking and reappear further down the list, with
+  /// two week totals silently changing on the way.
+  bool get _movesToAnotherWeek {
+    final initial = widget.initial;
+    if (initial == null) return false;
+    return weekStart(_spentOn) != weekStart(initial.spentOn);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -45,7 +58,7 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
     );
     _merchant = TextEditingController(text: initial?.merchant ?? '');
     _note = TextEditingController(text: initial?.note ?? '');
-    _spentOn = initial?.spentOn ?? DateTime.now();
+    _spentOn = initial?.spentOn ?? ref.read(nowProvider)();
     _category = initial?.category ?? ExpenseCategory.custom;
   }
 
@@ -58,11 +71,21 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
   }
 
   Future<void> _pickDate() async {
+    final now = ref.read(nowProvider)();
+    // Today, not a year out. A future-dated expense would create a week
+    // sitting above the current one in the list, which is not something
+    // anyone wants to open their app to.
+    final today = DateTime(now.year, now.month, now.day);
+    // Clamped, because showDatePicker asserts when initialDate falls outside
+    // the range. An expense already dated ahead — written before this cap
+    // existed — would otherwise crash the picker instead of being editable.
+    final start = _spentOn.isAfter(today) ? today : _spentOn;
+
     final picked = await showDatePicker(
       context: context,
-      initialDate: _spentOn,
+      initialDate: start,
       firstDate: DateTime(2020),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
+      lastDate: today,
     );
     if (!mounted || picked == null) return;
     setState(() => _spentOn = picked);
@@ -77,13 +100,23 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
     setState(() => _saving = true);
 
     final navigator = Navigator.of(context);
-    final repository = ref.read(expenseRepositoryProvider);
+    final messenger = ScaffoldMessenger.of(context);
+    final expenses = ref.read(expenseRepositoryProvider);
+    final weeks = ref.read(weekBudgetRepositoryProvider);
     final note = _note.text.trim();
     final initial = widget.initial;
+    final moved = _movesToAnotherWeek;
+    final movedTo = weekStart(_spentOn);
 
     try {
+      // The week has to exist before an expense can belong to it. Backdating
+      // into an untracked week materialises that week at the current default,
+      // which is the best answer available — there is no record of what the
+      // budget was at the time.
+      await weeks.ensureWeek(_spentOn);
+
       if (initial == null) {
-        await repository.insert(
+        await expenses.insert(
           Expense.create(
             id: const Uuid().v4(),
             amountCents: cents,
@@ -94,7 +127,7 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
           ),
         );
       } else {
-        await repository.update(
+        await expenses.update(
           initial.copyWith(
             amountCents: cents,
             spentOn: _spentOn,
@@ -105,7 +138,20 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
           ),
         );
       }
+
       navigator.pop();
+
+      if (moved) {
+        messenger
+          ..clearSnackBars()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(
+                'Moved to the week of ${DateFormat.MMMd().format(movedTo)}',
+              ),
+            ),
+          );
+      }
     } catch (error) {
       if (!mounted) return;
       setState(() => _saving = false);
@@ -114,12 +160,50 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
     }
   }
 
+  Future<void> _delete() async {
+    final initial = widget.initial;
+    if (initial == null) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete this expense?'),
+        content: const Text('This cannot be undone from here.'),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (!mounted || confirmed != true) return;
+
+    setState(() => _saving = true);
+    final navigator = Navigator.of(context);
+    await ref.read(expenseRepositoryProvider).delete(initial.id);
+    navigator.pop();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Scaffold(
       appBar: AppBar(
         title: Text(_isEditing ? 'Edit expense' : 'Add expense'),
         actions: <Widget>[
+          if (_isEditing)
+            IconButton(
+              icon: const Icon(Icons.delete_outline),
+              tooltip: 'Delete expense',
+              onPressed: _saving ? null : _delete,
+            ),
           TextButton(
             onPressed: _saving ? null : _save,
             child: const Text('Save'),
@@ -165,6 +249,31 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
             ),
             const SizedBox(height: 16),
             _DateField(value: _spentOn, onTap: _pickDate),
+            if (_movesToAnotherWeek)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Icon(
+                      Icons.swap_horiz,
+                      size: 18,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Saving moves this expense to the week of '
+                        '${DateFormat.MMMd().format(weekStart(_spentOn))}, '
+                        'so both weeks\u2019 totals will change.',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             const SizedBox(height: 16),
             DropdownButtonFormField<ExpenseCategory>(
               initialValue: _category,
@@ -197,6 +306,17 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
               onPressed: _saving ? null : _save,
               child: Text(_isEditing ? 'Save changes' : 'Add expense'),
             ),
+            if (_isEditing) ...<Widget>[
+              const SizedBox(height: 8),
+              TextButton.icon(
+                onPressed: _saving ? null : _delete,
+                icon: const Icon(Icons.delete_outline),
+                label: const Text('Delete expense'),
+                style: TextButton.styleFrom(
+                  foregroundColor: theme.colorScheme.error,
+                ),
+              ),
+            ],
           ],
         ),
       ),

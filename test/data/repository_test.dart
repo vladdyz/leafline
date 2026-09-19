@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:receipt_tracker/data/budget_repository.dart';
 import 'package:receipt_tracker/data/database.dart';
 import 'package:receipt_tracker/data/expense_repository.dart';
+import 'package:receipt_tracker/data/week_budget_repository.dart';
 import 'package:receipt_tracker/util/budget_rules.dart';
 
 import '../helpers/test_database.dart';
@@ -12,12 +12,12 @@ void main() {
 
   late AppDatabase database;
   late ExpenseRepository expenses;
-  late BudgetRepository budgets;
+  late WeekBudgetRepository budgets;
 
   setUp(() async {
     database = await openTestDatabase();
     expenses = ExpenseRepository(database);
-    budgets = BudgetRepository(database);
+    budgets = WeekBudgetRepository(database);
   });
 
   tearDown(() async {
@@ -44,7 +44,7 @@ void main() {
     });
 
     test('seeds the budget singleton', () async {
-      final budget = await budgets.get();
+      final budget = await budgets.getDefault();
       expect(budget.weeklyCents, 0);
     });
 
@@ -332,50 +332,9 @@ void main() {
     });
   });
 
-  group('BudgetRepository', () {
-    test('reads the seeded unset budget', () async {
-      expect((await budgets.get()).isSet, isFalse);
-    });
-
-    test('sets and reads back', () async {
-      await budgets.setWeeklyCents(20000, now: DateTime(2026, 9, 17));
-      final budget = await budgets.get();
-      expect(budget.weeklyCents, 20000);
-      expect(budget.isSet, isTrue);
-    });
-
-    test('overwrites rather than inserting a second row', () async {
-      await budgets.setWeeklyCents(20000, now: DateTime(2026, 9, 17));
-      await budgets.setWeeklyCents(15000, now: DateTime(2026, 9, 18));
-
-      expect((await budgets.get()).weeklyCents, 15000);
-      final rows = await database.db.query('budgets');
-      expect(rows, hasLength(1));
-    });
-
-    test('rejects a negative budget', () async {
-      expect(() => budgets.setWeeklyCents(-1), throwsA(isA<ArgumentError>()));
-    });
-
-    test('clear returns to unset', () async {
-      await budgets.setWeeklyCents(20000, now: DateTime(2026, 9, 17));
-      await budgets.clear(now: DateTime(2026, 9, 18));
-      expect((await budgets.get()).isSet, isFalse);
-    });
-
-    test('emits a change on set', () async {
-      final emissions = <void>[];
-      final sub = budgets.changes.listen(emissions.add);
-      await budgets.setWeeklyCents(20000, now: DateTime(2026, 9, 17));
-      await Future<void>.delayed(Duration.zero);
-      expect(emissions, hasLength(1));
-      await sub.cancel();
-    });
-  });
-
   group('integration: budget state from stored data', () {
     test('a real week resolves to the approaching state', () async {
-      await budgets.setWeeklyCents(20000, now: DateTime(2026, 9, 14));
+      await budgets.setDefaultWeeklyCents(20000, now: DateTime(2026, 9, 14));
       await expenses.insert(
         makeExpense(
           id: 'a',
@@ -394,7 +353,7 @@ void main() {
       );
 
       final spent = await expenses.totalCentsForWeek(DateTime(2026, 9, 17));
-      final budget = await budgets.get();
+      final budget = await budgets.getDefault();
 
       expect(spent, 16400);
       expect(

@@ -2,9 +2,10 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:receipt_tracker/data/budget_repository.dart';
 import 'package:receipt_tracker/data/database.dart';
 import 'package:receipt_tracker/data/expense_repository.dart';
+import 'package:receipt_tracker/data/week_budget_repository.dart';
+import 'package:receipt_tracker/ui/screens/all_weeks_screen.dart';
 import 'package:receipt_tracker/ui/screens/settings_screen.dart';
 import 'package:receipt_tracker/ui/screens/week_list_screen.dart';
 import 'package:receipt_tracker/ui/widgets/budget_bar.dart';
@@ -17,21 +18,27 @@ import '../helpers/test_database.dart';
 void main() {
   setUpAll(initTestDatabase);
 
+  // 2026-09-14 is a Monday. "Now" is pinned to the Thursday of that week, so
+  // these tests do not change behaviour depending on the day they run.
+  final now = DateTime(2026, 9, 17, 10);
+  final thisWeek = DateTime(2026, 9, 14);
+  final lastWeek = DateTime(2026, 9, 7);
+
   late AppDatabase database;
   late ExpenseRepository expenses;
-  late BudgetRepository budgets;
+  late WeekBudgetRepository weekBudgets;
   late Directory documents;
 
   setUp(() async {
     database = await openTestDatabase();
     expenses = ExpenseRepository(database);
-    budgets = BudgetRepository(database);
+    weekBudgets = WeekBudgetRepository(database);
     documents = await Directory.systemTemp.createTemp('harvest_widget_test');
   });
 
   tearDown(() async {
     await expenses.dispose();
-    await budgets.dispose();
+    await weekBudgets.dispose();
     await database.close();
     if (documents.existsSync()) {
       await documents.delete(recursive: true);
@@ -43,57 +50,56 @@ void main() {
     home: const WeekListScreen(),
     database: database,
     documents: documents,
+    now: now,
   );
 
-  group('budgetMessage', () {
-    // Pure function, so its wording is pinned here rather than asserted
-    // through a rendered widget.
-    test('under budget reports what is left', () {
-      expect(
-        budgetMessage(spentCents: 5000, budgetCents: 20000),
-        r'$50.00 of $200 — $150.00 left',
-      );
+  group('a tracked week with no expenses', () {
+    testWidgets('still renders, with its budget bar', (tester) async {
+      // The case the old expense-driven list could not show at all.
+      await weekBudgets.setDefaultWeeklyCents(20000, now: now);
+      await weekBudgets.ensureWeek(thisWeek, now: now);
+
+      await pumpList(tester);
+
+      expect(find.byType(WeekHeader), findsOneWidget);
+      expect(find.byType(BudgetBar), findsOneWidget);
+      expect(find.text(r'$0.00 of $200 — $200.00 left'), findsOneWidget);
+      expect(find.text('Nothing logged yet this week.'), findsOneWidget);
     });
 
-    test('approaching still reports what is left', () {
-      expect(
-        budgetMessage(spentCents: 16400, budgetCents: 20000),
-        r'$164.00 of $200 — $36.00 left',
-      );
-    });
+    testWidgets('a finished empty week reads as spending nothing', (
+      tester,
+    ) async {
+      await weekBudgets.setDefaultWeeklyCents(20000, now: now);
+      await weekBudgets.ensureWeek(lastWeek, now: now);
+      await weekBudgets.ensureWeek(thisWeek, now: now);
 
-    test('over reports the overage', () {
-      expect(
-        budgetMessage(spentCents: 25000, budgetCents: 20000),
-        r'$250.00 of $200 — over by $50.00',
-      );
-    });
+      await pumpList(tester);
 
-    test('no budget set says so rather than dividing by zero', () {
-      expect(
-        budgetMessage(spentCents: 5000, budgetCents: 0),
-        r'$50.00 spent — no budget set',
-      );
+      expect(find.text('Nothing spent this week.'), findsOneWidget);
+      expect(find.text('Nothing logged yet this week.'), findsOneWidget);
     });
   });
 
-  group('WeekListScreen empty state', () {
-    testWidgets('shows a prompt when there are no expenses', (tester) async {
+  group('untracked weeks', () {
+    testWidgets('a week with no row does not appear', (tester) async {
+      // Only this week is tracked; the weeks before it were never seen by the
+      // app and must not be rendered as anything at all.
+      await weekBudgets.setDefaultWeeklyCents(20000, now: now);
+      await weekBudgets.ensureWeek(thisWeek, now: now);
+
       await pumpList(tester);
 
-      expect(find.text('No expenses yet'), findsOneWidget);
-      expect(find.text('Tap Add to log your first one.'), findsOneWidget);
-    });
-
-    testWidgets('still offers the add button', (tester) async {
-      await pumpList(tester);
-      expect(find.widgetWithText(FloatingActionButton, 'Add'), findsOneWidget);
+      expect(find.byType(WeekHeader), findsOneWidget);
     });
   });
 
-  group('WeekListScreen with data', () {
+  group('week list with data', () {
     setUp(() async {
-      await budgets.setWeeklyCents(20000, now: DateTime(2026, 9, 14));
+      await weekBudgets.setDefaultWeeklyCents(20000, now: DateTime(2026, 9, 1));
+      await weekBudgets.ensureWeek(lastWeek, now: lastWeek);
+      await weekBudgets.ensureWeek(thisWeek, now: now);
+
       await expenses.insert(
         makeExpense(
           id: 'a',
@@ -113,7 +119,6 @@ void main() {
         ),
       );
       await expenses.insert(
-        // Previous week, so grouping has something to separate.
         makeExpense(
           id: 'c',
           amountCents: 3000,
@@ -123,20 +128,18 @@ void main() {
       );
     });
 
-    testWidgets('renders every expense', (tester) async {
+    testWidgets('renders both weeks and their expenses', (tester) async {
       await pumpList(tester);
 
+      expect(find.byType(WeekHeader), findsNWidgets(2));
       expect(find.text('Corner Market'), findsOneWidget);
       expect(find.text('Cafe Diem'), findsOneWidget);
       expect(find.text('Old Thing'), findsOneWidget);
     });
 
-    testWidgets('groups into two weeks with separate totals', (tester) async {
+    testWidgets('each week totals independently', (tester) async {
       await pumpList(tester);
 
-      // Scoped to the header rather than a bare find.text: the old week has a
-      // single $30 expense, so its total and its only tile render the same
-      // string. A bare finder matches both and says nothing about grouping.
       Finder headerTotal(String amount) => find.descendant(
         of: find.byType(WeekHeader),
         matching: find.text(amount),
@@ -144,87 +147,71 @@ void main() {
 
       expect(headerTotal(r'$164.00'), findsOneWidget);
       expect(headerTotal(r'$30.00'), findsOneWidget);
-      expect(find.byType(WeekHeader), findsNWidgets(2));
     });
 
-    testWidgets('shows a budget bar per week', (tester) async {
-      await pumpList(tester);
-      expect(find.byType(BudgetBar), findsNWidgets(2));
-    });
-
-    testWidgets('budget bar reports the approaching state', (tester) async {
+    testWidgets('the current week shows its live budget line', (tester) async {
       await pumpList(tester);
       expect(find.text(r'$164.00 of $200 — $36.00 left'), findsOneWidget);
     });
+  });
 
-    testWidgets('tapping an expense opens it for editing', (tester) async {
+  group('the default does not rewrite a finished week', () {
+    testWidgets('an earlier week keeps the budget it ran on', (tester) async {
+      await weekBudgets.setDefaultWeeklyCents(10000, now: DateTime(2026, 9, 1));
+      await weekBudgets.ensureWeek(lastWeek, now: lastWeek);
+      await weekBudgets.ensureWeek(thisWeek, now: now);
+      await weekBudgets.setDefaultWeeklyCents(50000, now: now);
+
       await pumpList(tester);
 
-      await tester.tap(find.text('Cafe Diem'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Edit expense'), findsOneWidget);
-      expect(find.text('Save changes'), findsOneWidget);
+      // Last week still reads against $100; this week followed the change.
+      expect(find.text(r'$0.00 of $100 — $100.00 left'), findsOneWidget);
+      expect(find.text(r'$0.00 of $500 — $500.00 left'), findsOneWidget);
     });
   });
 
-  group('adding an expense', () {
-    testWidgets('appears in the list after saving', (tester) async {
-      await pumpList(tester);
-
-      await tester.tap(find.widgetWithText(FloatingActionButton, 'Add'));
-      await tester.pumpAndSettle();
-
-      expect(find.widgetWithText(AppBar, 'Add expense'), findsOneWidget);
-
-      await tester.enterText(
-        find.widgetWithText(TextFormField, 'Amount'),
-        '12.40',
-      );
-      await tester.enterText(
-        find.widgetWithText(TextFormField, 'Merchant (optional)'),
-        'New Place',
-      );
-      await tester.tap(find.widgetWithText(FilledButton, 'Add expense'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('New Place'), findsOneWidget);
-      expect(find.text(r'$12.40'), findsWidgets);
-    });
-
-    testWidgets('rejects an empty amount', (tester) async {
-      await pumpList(tester);
-
-      await tester.tap(find.widgetWithText(FloatingActionButton, 'Add'));
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.widgetWithText(FilledButton, 'Add expense'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Enter an amount'), findsOneWidget);
-      // Still on the form rather than popped back to the list.
-      expect(find.text('Add expense'), findsWidgets);
-    });
-
-    testWidgets('rejects an unparseable amount', (tester) async {
-      await pumpList(tester);
-
-      await tester.tap(find.widgetWithText(FloatingActionButton, 'Add'));
-      await tester.pumpAndSettle();
-
-      await tester.enterText(
-        find.widgetWithText(TextFormField, 'Amount'),
-        '1.2.3',
-      );
-      await tester.tap(find.widgetWithText(FilledButton, 'Add expense'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Not a valid amount'), findsOneWidget);
-    });
-  });
-
-  group('deleting an expense', () {
+  group('the list is capped', () {
     setUp(() async {
+      await weekBudgets.setDefaultWeeklyCents(20000, now: now);
+      for (final monday in <DateTime>[
+        DateTime(2026, 8, 10),
+        DateTime(2026, 8, 17),
+        DateTime(2026, 8, 24),
+        DateTime(2026, 8, 31),
+        lastWeek,
+        thisWeek,
+      ]) {
+        await weekBudgets.ensureWeek(monday, now: monday);
+      }
+    });
+
+    testWidgets('shows four weeks, not six', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(800, 1400));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await pumpList(tester);
+      expect(find.byType(WeekHeader), findsNWidgets(4));
+    });
+
+    testWidgets('offers a way through to the rest', (tester) async {
+      await pumpList(tester);
+      expect(find.text('Earlier weeks'), findsOneWidget);
+    });
+
+    testWidgets('no archive link when everything already fits', (tester) async {
+      await database.clear();
+      await weekBudgets.setDefaultWeeklyCents(20000, now: now);
+      await weekBudgets.ensureWeek(thisWeek, now: now);
+
+      await pumpList(tester);
+      expect(find.text('Earlier weeks'), findsNothing);
+    });
+  });
+
+  group('deleting', () {
+    setUp(() async {
+      await weekBudgets.setDefaultWeeklyCents(20000, now: now);
+      await weekBudgets.ensureWeek(thisWeek, now: now);
       await expenses.insert(
         makeExpense(
           id: 'del',
@@ -250,37 +237,153 @@ void main() {
       await tester.pumpAndSettle();
     });
 
-    testWidgets('undo restores the original row', (tester) async {
+    testWidgets('the week survives its last expense', (tester) async {
       await pumpList(tester);
 
       await tester.drag(find.text('Doomed'), const Offset(-500, 0));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Undo'));
+      // The week is tracked, so emptying it does not remove it.
+      expect(find.byType(WeekHeader), findsOneWidget);
+      expect(find.text('Nothing logged yet this week.'), findsOneWidget);
+
+      await tester.pump(const Duration(seconds: 5));
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('the edit screen has a delete button', (tester) async {
+      await pumpList(tester);
+
+      await tester.tap(find.text('Doomed'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Doomed'), findsOneWidget);
+      expect(find.widgetWithText(TextButton, 'Delete expense'), findsOneWidget);
+    });
 
-      // A true reversal: same id, not a lookalike with a fresh one.
-      final restored = await expenses.getById('del');
-      expect(restored, isNotNull);
-      expect(restored!.amountCents, 999);
+    testWidgets('deleting from the edit screen asks first', (tester) async {
+      await pumpList(tester);
+      await tester.tap(find.text('Doomed'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(TextButton, 'Delete expense'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Delete this expense?'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+      await tester.pumpAndSettle();
+
+      expect(await expenses.getById('del'), isNotNull);
+    });
+
+    testWidgets('confirming deletes and returns to the list', (tester) async {
+      await pumpList(tester);
+      await tester.tap(find.text('Doomed'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(TextButton, 'Delete expense'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
+      await tester.pumpAndSettle();
+
+      expect(await expenses.getById('del'), isNull);
+      expect(find.text('Doomed'), findsNothing);
+    });
+  });
+
+  group('moving an expense between weeks', () {
+    testWidgets('warns before saving', (tester) async {
+      await weekBudgets.setDefaultWeeklyCents(20000, now: now);
+      await weekBudgets.ensureWeek(thisWeek, now: now);
+      await expenses.insert(
+        makeExpense(
+          id: 'm',
+          amountCents: 1000,
+          spentOn: DateTime(2026, 9, 17),
+          merchant: 'Mover',
+        ),
+      );
+
+      await pumpList(tester);
+      await tester.tap(find.text('Mover'));
+      await tester.pumpAndSettle();
+
+      // No warning while the date is unchanged.
+      expect(find.textContaining('Saving moves this expense'), findsNothing);
+    });
+  });
+
+  group('AllWeeksScreen', () {
+    testWidgets('lists tracked weeks with their verdicts', (tester) async {
+      await weekBudgets.setDefaultWeeklyCents(20000, now: DateTime(2026, 9, 1));
+      await weekBudgets.ensureWeek(lastWeek, now: lastWeek);
+      await weekBudgets.ensureWeek(thisWeek, now: now);
+      await expenses.insert(
+        makeExpense(
+          id: 'over',
+          amountCents: 30000,
+          spentOn: DateTime(2026, 9, 9),
+        ),
+      );
+
+      await pumpApp(
+        tester,
+        home: const AllWeeksScreen(),
+        database: database,
+        documents: documents,
+        now: now,
+      );
+
+      expect(find.text('Over budget'), findsOneWidget);
+      expect(find.text('In progress'), findsOneWidget);
+    });
+
+    testWidgets('a finished week with no spending is within budget', (
+      tester,
+    ) async {
+      await weekBudgets.setDefaultWeeklyCents(20000, now: DateTime(2026, 9, 1));
+      await weekBudgets.ensureWeek(lastWeek, now: lastWeek);
+      await weekBudgets.ensureWeek(thisWeek, now: now);
+
+      await pumpApp(
+        tester,
+        home: const AllWeeksScreen(),
+        database: database,
+        documents: documents,
+        now: now,
+      );
+
+      expect(find.text('Within budget'), findsOneWidget);
+    });
+
+    testWidgets('offers upcoming weeks for planning', (tester) async {
+      await weekBudgets.setDefaultWeeklyCents(10000, now: now);
+      await weekBudgets.ensureWeek(thisWeek, now: now);
+
+      await pumpApp(
+        tester,
+        home: const AllWeeksScreen(),
+        database: database,
+        documents: documents,
+        now: now,
+      );
+
+      expect(find.text('Coming up'), findsOneWidget);
+      expect(find.textContaining('(your default)'), findsWidgets);
     });
   });
 
   group('SettingsScreen', () {
-    testWidgets('saves a budget and the list picks it up', (tester) async {
-      await expenses.insert(
-        makeExpense(
-          id: 'a',
-          amountCents: 16400,
-          spentOn: DateTime(2026, 9, 17),
-        ),
-      );
-      await pumpList(tester);
+    testWidgets('saving the default updates the current week', (tester) async {
+      await weekBudgets.ensureWeek(thisWeek, now: now);
 
-      await tester.tap(find.byIcon(Icons.settings_outlined));
-      await tester.pumpAndSettle();
+      await pumpApp(
+        tester,
+        home: const SettingsScreen(),
+        database: database,
+        documents: documents,
+        now: now,
+      );
 
       await tester.enterText(
         find.widgetWithText(TextFormField, 'Amount per week'),
@@ -289,42 +392,26 @@ void main() {
       await tester.tap(find.widgetWithText(FilledButton, 'Save budget'));
       await tester.pumpAndSettle();
 
-      expect((await budgets.get()).weeklyCents, 20000);
+      expect((await weekBudgets.getDefault()).weeklyCents, 20000);
+      expect((await weekBudgets.getWeek(thisWeek))!.budgetCents, 20000);
 
-      // 'Budget saved' carries no action, so it still auto-dismisses.
       await tester.pump(const Duration(seconds: 5));
       await tester.pumpAndSettle();
     });
 
-    testWidgets('prefills the existing budget', (tester) async {
-      await budgets.setWeeklyCents(15000, now: DateTime(2026, 9, 14));
-
+    testWidgets('explains that history is not rewritten', (tester) async {
       await pumpApp(
         tester,
         home: const SettingsScreen(),
         database: database,
         documents: documents,
+        now: now,
       );
 
-      expect(find.text('150.00'), findsOneWidget);
-    });
-
-    testWidgets('rejects an unparseable budget', (tester) async {
-      await pumpApp(
-        tester,
-        home: const SettingsScreen(),
-        database: database,
-        documents: documents,
+      expect(
+        find.textContaining('never rewrites your history'),
+        findsOneWidget,
       );
-
-      await tester.enterText(
-        find.widgetWithText(TextFormField, 'Amount per week'),
-        '..',
-      );
-      await tester.tap(find.widgetWithText(FilledButton, 'Save budget'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Not a valid amount'), findsOneWidget);
     });
   });
 }
