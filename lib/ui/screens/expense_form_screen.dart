@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -275,6 +277,15 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
           ),
         );
       }
+
+      // After the write, never before: the alert is about what the total now
+      // is. Deliberately not awaited against the pop — a notification the
+      // system will deliver in its own time should not hold the screen open.
+      unawaited(
+        ref
+            .read(budgetAlertServiceProvider)
+            .checkAndNotify(now: ref.read(nowProvider)()),
+      );
 
       navigator.pop();
 

@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:receipt_tracker/data/database.dart';
+import 'package:receipt_tracker/services/app_lock_service.dart';
 import 'package:receipt_tracker/state/providers.dart';
+import 'package:receipt_tracker/ui/screens/lock_screen.dart';
 import 'package:receipt_tracker/ui/screens/week_list_screen.dart';
 import 'package:receipt_tracker/ui/theme.dart';
 import 'package:sqflite/sqflite.dart';
@@ -43,7 +45,7 @@ class HarvestApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: HarvestTheme.light(),
       darkTheme: HarvestTheme.dark(),
-      home: const _StartupTasks(child: WeekListScreen()),
+      home: const _AppLockGate(child: _StartupTasks(child: WeekListScreen())),
     );
   }
 }
@@ -85,6 +87,10 @@ class _StartupTasksState extends ConsumerState<_StartupTasks>
       // retention pass failed to delete still gets collected.
       await _sweepExpiredPhotos();
       await _sweepOrphanPhotos();
+      // Creates the notification channel so Android's settings list it before
+      // the first warning ever fires. Permission is NOT requested here — that
+      // happens when a warning is actually due, where the ask has context.
+      await ref.read(notificationServiceProvider).initialize();
     });
   }
 
@@ -132,4 +138,98 @@ class _StartupTasksState extends ConsumerState<_StartupTasks>
 
   @override
   Widget build(BuildContext context) => widget.child;
+}
+
+/// Holds the app behind a device authentication prompt.
+///
+/// Locks on cold start, and again on resume once the app has been away for
+/// longer than [_grace]. The grace window exists because an app that
+/// re-prompts every time you glance at a notification is an app whose lock
+/// gets switched off.
+///
+/// Off by default. Decision 0004 is that there is nothing to authenticate
+/// against — the database sits in the app's private sandbox either way — so
+/// this guards exactly one threat from the threat model: someone picking up
+/// an unlocked phone.
+class _AppLockGate extends ConsumerStatefulWidget {
+  const _AppLockGate({required this.child});
+
+  final Widget child;
+
+  @override
+  ConsumerState<_AppLockGate> createState() => _AppLockGateState();
+}
+
+class _AppLockGateState extends ConsumerState<_AppLockGate>
+    with WidgetsBindingObserver {
+  static const Duration _grace = Duration(minutes: 2);
+
+  DateTime? _unlockedAt;
+  bool _locked = false;
+  bool _prompting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _evaluate());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _evaluate();
+  }
+
+  Future<void> _evaluate() async {
+    final enabled = await ref
+        .read(settingsRepositoryProvider)
+        .getAppLockEnabled();
+    final lock = shouldLock(
+      enabled: enabled,
+      unlockedAt: _unlockedAt,
+      now: ref.read(nowProvider)(),
+      grace: _grace,
+    );
+
+    if (!mounted) return;
+    if (!lock) {
+      if (_locked) setState(() => _locked = false);
+      return;
+    }
+
+    setState(() => _locked = true);
+    await _unlock();
+  }
+
+  Future<void> _unlock() async {
+    if (_prompting) return;
+    setState(() => _prompting = true);
+
+    final ok = await ref.read(appLockServiceProvider).authenticate();
+
+    if (!mounted) return;
+    setState(() {
+      _prompting = false;
+      if (ok) {
+        _locked = false;
+        _unlockedAt = ref.read(nowProvider)();
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // The child stays built underneath rather than being torn down, so
+    // unlocking returns to exactly where the user was. It is covered, not
+    // discarded.
+    return _locked
+        ? LockScreen(onUnlock: _unlock, busy: _prompting)
+        : widget.child;
+  }
 }

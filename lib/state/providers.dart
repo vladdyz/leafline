@@ -9,10 +9,15 @@ import 'package:receipt_tracker/data/image_store.dart';
 import 'package:receipt_tracker/data/settings_repository.dart';
 import 'package:receipt_tracker/data/week_budget_repository.dart';
 import 'package:receipt_tracker/models/budget.dart';
+import 'package:receipt_tracker/models/budget_alert.dart';
 import 'package:receipt_tracker/models/expense.dart';
 import 'package:receipt_tracker/models/photo_retention.dart';
 import 'package:receipt_tracker/models/week_budget.dart';
+import 'package:receipt_tracker/services/app_lock_service.dart';
+import 'package:receipt_tracker/services/budget_alert_service.dart';
 import 'package:receipt_tracker/services/channel_ocr_service.dart';
+import 'package:receipt_tracker/services/local_notification_service.dart';
+import 'package:receipt_tracker/services/notification_service.dart';
 import 'package:receipt_tracker/services/ocr_service.dart';
 import 'package:receipt_tracker/services/photo_retention_sweeper.dart';
 import 'package:receipt_tracker/services/photo_source.dart';
@@ -74,6 +79,44 @@ final photoRetentionSweeperProvider = Provider<PhotoRetentionSweeper>((ref) {
   );
 });
 
+final appLockServiceProvider = Provider<AppLockService>((ref) {
+  return Platform.isAndroid || Platform.isIOS
+      ? LocalAuthAppLockService()
+      : const UnavailableAppLockService();
+});
+
+/// Whether the device can authenticate at all.
+///
+/// A device with no enrolled biometric and no PIN cannot, and neither can
+/// anything below Android 6 — the toggle stays hidden rather than offering a
+/// lock that could never engage.
+final appLockAvailableProvider = FutureProvider<bool>((ref) {
+  return ref.watch(appLockServiceProvider).isAvailable();
+});
+
+/// Whether the lock is switched on. Defaults to off.
+final appLockEnabledProvider = FutureProvider<bool>((ref) {
+  final settings = ref.watch(settingsRepositoryProvider);
+  final subscription = settings.changes.listen((_) => ref.invalidateSelf());
+  ref.onDispose(subscription.cancel);
+  return settings.getAppLockEnabled();
+});
+
+final notificationServiceProvider = Provider<NotificationService>((ref) {
+  return Platform.isAndroid || Platform.isIOS
+      ? LocalNotificationService()
+      : const UnavailableNotificationService();
+});
+
+final budgetAlertServiceProvider = Provider<BudgetAlertService>((ref) {
+  return BudgetAlertService(
+    expenses: ref.watch(expenseRepositoryProvider),
+    weekBudgets: ref.watch(weekBudgetRepositoryProvider),
+    settings: ref.watch(settingsRepositoryProvider),
+    notifications: ref.watch(notificationServiceProvider),
+  );
+});
+
 /// Where receipt photos come from.
 ///
 /// Overridden in tests with a fake, which is the whole reason it is an
@@ -115,6 +158,17 @@ void _refreshOnAnyWrite(Ref ref) {
     }
   });
 }
+
+/// Whether each budget warning is switched on.
+final alertEnabledProvider = FutureProvider.family<bool, BudgetAlert>((
+  ref,
+  alert,
+) {
+  final settings = ref.watch(settingsRepositoryProvider);
+  final subscription = settings.changes.listen((_) => ref.invalidateSelf());
+  ref.onDispose(subscription.cancel);
+  return settings.getAlertEnabled(alert);
+});
 
 /// How long photos are kept.
 final photoRetentionProvider = FutureProvider<PhotoRetention>((ref) {

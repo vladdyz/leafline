@@ -1,10 +1,13 @@
 package com.vzolotukhin.receipt_tracker
 
 import com.vzolotukhin.receipt_tracker.ocr.OcrPlugin
-import io.flutter.embedding.android.FlutterActivity
+// FlutterFragmentActivity, not FlutterActivity. local_auth shows the
+// biometric prompt as a DialogFragment, which needs a FragmentActivity
+// underneath it — with plain FlutterActivity the prompt simply never appears.
+import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 
-class MainActivity : FlutterActivity() {
+class MainActivity : FlutterFragmentActivity() {
 
     private val ocrPlugin = OcrPlugin()
 
@@ -19,9 +22,6 @@ class MainActivity : FlutterActivity() {
         )
     }
 
-    // If `cleanUpFlutterEngine` does not resolve against your Flutter version,
-    // delete this override — but note it now also closes the recogniser, which
-    // is worth keeping if you can.
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
         ocrPlugin.unregister()
         super.cleanUpFlutterEngine(flutterEngine)

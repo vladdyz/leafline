@@ -1,6 +1,8 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:receipt_tracker/models/budget_alert.dart';
 import 'package:receipt_tracker/models/photo_retention.dart';
 import 'package:receipt_tracker/state/providers.dart';
 import 'package:receipt_tracker/util/budget_rules.dart';
@@ -182,13 +184,38 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             const SizedBox(height: 12),
             const _StorageUsageRow(),
             const Divider(height: 40),
+            Text('Warnings', style: theme.textTheme.titleMedium),
+            const SizedBox(height: 8),
             Text(
-              'Warnings appear at $kApproachingPercent% of the budget and '
-              'again when it is passed.',
-              style: theme.textTheme.bodySmall?.copyWith(
+              'Each fires at most once a week, on the expense that crosses '
+              'the line. Android will ask permission the first time one is '
+              'due.',
+              style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
+            const _AlertToggle(
+              alert: BudgetAlert.approaching,
+              title: 'Getting close',
+              subtitle: 'At $kApproachingPercent% of the week\u2019s budget.',
+            ),
+            const _AlertToggle(
+              alert: BudgetAlert.over,
+              title: 'Over budget',
+              subtitle: 'When the week\u2019s budget is passed.',
+            ),
+            if (kDebugMode) const _ResetWarningsButton(),
+            const Divider(height: 40),
+            Text('Privacy', style: theme.textTheme.titleMedium),
+            const SizedBox(height: 8),
+            Text(
+              'Receipts show where you go and what you buy. This asks for '
+              'your fingerprint, face or device PIN before showing anything.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const _AppLockToggle(),
           ],
         ),
       ),
@@ -252,6 +279,92 @@ class _StorageUsageRow extends ConsumerWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _AlertToggle extends ConsumerWidget {
+  const _AlertToggle({
+    required this.alert,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final BudgetAlert alert;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final enabled = ref.watch(alertEnabledProvider(alert));
+
+    return SwitchListTile(
+      contentPadding: EdgeInsets.zero,
+      title: Text(title),
+      subtitle: Text(subtitle),
+      // Defaults to on while loading. Both warnings ship enabled, so this
+      // matches what the stored value will turn out to be and avoids a switch
+      // that visibly flips on its own a frame later.
+      value: enabled.value ?? true,
+      onChanged: (value) async {
+        await ref
+            .read(settingsRepositoryProvider)
+            .setAlertEnabled(alert, enabled: value);
+      },
+    );
+  }
+}
+
+class _AppLockToggle extends ConsumerWidget {
+  const _AppLockToggle();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final available = ref.watch(appLockAvailableProvider);
+    final enabled = ref.watch(appLockEnabledProvider);
+
+    // Hidden rather than disabled on a device that cannot authenticate. A
+    // greyed-out switch invites someone to work out why; an absent one does
+    // not raise the question.
+    if (available.value != true) return const SizedBox.shrink();
+
+    return SwitchListTile(
+      contentPadding: EdgeInsets.zero,
+      title: const Text('Lock the app'),
+      subtitle: const Text(
+        'Asks again after two minutes away. Your device PIN always works.',
+      ),
+      value: enabled.value ?? false,
+      onChanged: (value) async {
+        await ref
+            .read(settingsRepositoryProvider)
+            .setAppLockEnabled(enabled: value);
+      },
+    );
+  }
+}
+
+/// Debug only. Forgets which warnings have fired this week.
+///
+/// Without it, confirming a budget warning fires means waiting until Monday.
+class _ResetWarningsButton extends ConsumerWidget {
+  const _ResetWarningsButton();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: TextButton.icon(
+        icon: const Icon(Icons.refresh, size: 18),
+        label: const Text('Reset warnings (debug)'),
+        onPressed: () async {
+          final messenger = ScaffoldMessenger.of(context);
+          await ref.read(settingsRepositoryProvider).resetAlertHistory();
+          messenger.showSnackBar(
+            const SnackBar(content: Text('Warnings will fire again')),
+          );
+        },
+      ),
     );
   }
 }
