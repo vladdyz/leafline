@@ -94,15 +94,26 @@ class WeekHeader extends StatelessWidget {
         '${format.format(weekStart)} \u2013 '
         '${format.format(weekEndDate)}';
 
+    // Expanded on the range, not on the amount. A Row overflows by throwing
+    // rather than ellipsing, and at titleMedium a date range beside a figure
+    // like $999,999.99 comes close to the width of a small phone.
+    //
+    // The range gives way because it is the less important of the two: a
+    // truncated "Sep 14 – Sep…" is still legible, an ellipsed amount is not
+    // information at all.
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: <Widget>[
-        Text(
-          range,
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w600,
+        Expanded(
+          child: Text(
+            range,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
+        const SizedBox(width: 12),
         Text(
           formatCents(totalCents),
           style: HarvestTheme.money(theme.textTheme.titleMedium)
