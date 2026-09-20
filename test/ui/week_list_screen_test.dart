@@ -260,60 +260,101 @@ void main() {
       expect(find.widgetWithText(TextButton, 'Delete expense'), findsOneWidget);
     });
 
-    testWidgets('deleting from the edit screen asks first', (tester) async {
+    testWidgets('deleting from the edit screen returns to the list', (
+      tester,
+    ) async {
       await pumpList(tester);
       await tester.tap(find.text('Doomed'));
       await tester.pumpAndSettle();
 
       await tester.tap(find.widgetWithText(TextButton, 'Delete expense'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Delete this expense?'), findsOneWidget);
-
-      await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
-      await tester.pumpAndSettle();
-
-      expect(await expenses.getById('del'), isNotNull);
-    });
-
-    testWidgets('confirming deletes and returns to the list', (tester) async {
-      await pumpList(tester);
-      await tester.tap(find.text('Doomed'));
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.widgetWithText(TextButton, 'Delete expense'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
       await tester.pumpAndSettle();
 
       expect(await expenses.getById('del'), isNull);
       expect(find.text('Doomed'), findsNothing);
+
+      await tester.pump(const Duration(seconds: 5));
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('deleting from the edit screen offers undo', (tester) async {
+      // The behaviour that used to differ between the two delete paths. A
+      // confirmation dialog plus an undo was belt and braces for removing a
+      // coffee, and the dialog's wording implied an undo that did not exist.
+      await pumpList(tester);
+      await tester.tap(find.text('Doomed'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(TextButton, 'Delete expense'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Expense deleted'), findsOneWidget);
+      expect(find.text('Undo'), findsOneWidget);
+    });
+
+    testWidgets('undo from the edit screen restores the expense', (
+      tester,
+    ) async {
+      await pumpList(tester);
+      await tester.tap(find.text('Doomed'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(TextButton, 'Delete expense'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Undo'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Doomed'), findsOneWidget);
+
+      // A true reversal, exactly as the swipe path gives: same id, same row.
+      final restored = await expenses.getById('del');
+      expect(restored, isNotNull);
+      expect(restored!.amountCents, 999);
+    });
+
+    testWidgets('the app bar delete behaves identically', (tester) async {
+      // Two affordances, one code path — worth pinning, because the obvious
+      // way for them to drift apart is for one to grow a confirmation again.
+      await pumpList(tester);
+      await tester.tap(find.text('Doomed'));
+      await tester.pumpAndSettle();
+
+      // Scoped to the app bar: the week list underneath is still mounted, and
+      // its swipe-to-delete background uses the same icon.
+      await tester.tap(
+        find.descendant(
+          of: find.byType(AppBar),
+          matching: find.byIcon(Icons.delete_outline),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(await expenses.getById('del'), isNull);
+      expect(find.text('Expense deleted'), findsOneWidget);
+      expect(find.text('Undo'), findsOneWidget);
     });
   });
 
   group('moving an expense between weeks', () {
-    testWidgets(
-      'warns before saving only if target date falls on a different week',
-      (tester) async {
-        await weekBudgets.setDefaultWeeklyCents(20000, now: now);
-        await weekBudgets.ensureWeek(thisWeek, now: now);
-        await expenses.insert(
-          makeExpense(
-            id: 'm',
-            amountCents: 1000,
-            spentOn: DateTime(2026, 9, 17),
-            merchant: 'Mover',
-          ),
-        );
+    testWidgets('warns before saving', (tester) async {
+      await weekBudgets.setDefaultWeeklyCents(20000, now: now);
+      await weekBudgets.ensureWeek(thisWeek, now: now);
+      await expenses.insert(
+        makeExpense(
+          id: 'm',
+          amountCents: 1000,
+          spentOn: DateTime(2026, 9, 17),
+          merchant: 'Mover',
+        ),
+      );
 
-        await pumpList(tester);
-        await tester.tap(find.text('Mover'));
-        await tester.pumpAndSettle();
+      await pumpList(tester);
+      await tester.tap(find.text('Mover'));
+      await tester.pumpAndSettle();
 
-        // No warning while the date is unchanged.
-        expect(find.textContaining('Saving moves this expense'), findsNothing);
-      },
-    );
+      // No warning while the date is unchanged.
+      expect(find.textContaining('Saving moves this expense'), findsNothing);
+    });
   });
 
   group('AllWeeksScreen', () {

@@ -217,30 +217,35 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
     final initial = widget.initial;
     if (initial == null) return;
 
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Delete this expense?'),
-        content: const Text('This cannot be undone from here.'),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-
-    if (!mounted || confirmed != true) return;
-
     setState(() => _saving = true);
+
+    // Captured before the pop, because afterwards this screen's context is
+    // gone. The messenger belongs to the MaterialApp rather than to this
+    // route, so the snackbar lands on the list underneath.
     final navigator = Navigator.of(context);
-    await ref.read(expenseRepositoryProvider).delete(initial.id);
+    final messenger = ScaffoldMessenger.of(context);
+    final repository = ref.read(expenseRepositoryProvider);
+
+    await repository.delete(initial.id);
     navigator.pop();
+
+    messenger
+      ..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(
+          content: const Text('Expense deleted'),
+          action: SnackBarAction(
+            label: 'Undo',
+            // Re-inserting `initial` restores the expense exactly as it was
+            // when this screen opened — id, timestamps and photo reference
+            // included. Any unsaved edits on screen were never committed, so
+            // there is nothing of them to lose.
+            onPressed: () async {
+              await repository.insert(initial);
+            },
+          ),
+        ),
+      );
   }
 
   @override
