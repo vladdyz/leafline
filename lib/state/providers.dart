@@ -10,6 +10,8 @@ import 'package:receipt_tracker/data/week_budget_repository.dart';
 import 'package:receipt_tracker/models/budget.dart';
 import 'package:receipt_tracker/models/expense.dart';
 import 'package:receipt_tracker/models/week_budget.dart';
+import 'package:receipt_tracker/services/ocr_service.dart';
+import 'package:receipt_tracker/services/photo_source.dart';
 import 'package:receipt_tracker/util/budget_rules.dart';
 import 'package:receipt_tracker/util/week_math.dart';
 
@@ -52,7 +54,27 @@ final weekBudgetRepositoryProvider = Provider<WeekBudgetRepository>((ref) {
 
 final imageStoreProvider = Provider<ImageStore>((ref) {
   final root = ref.watch(documentsDirectoryProvider);
-  return ImageStore(Directory(p.join(root.path, 'receipts')));
+  return FileImageStore(Directory(p.join(root.path, 'receipts')));
+});
+
+/// Where receipt photos come from.
+///
+/// Overridden in tests with a fake, which is the whole reason it is an
+/// interface — `image_picker` is a platform channel and cannot be driven from
+/// a widget test.
+final photoSourceProvider = Provider<PhotoSource>((ref) {
+  return Platform.isAndroid || Platform.isIOS
+      ? ImagePickerPhotoSource()
+      : const UnavailablePhotoSource();
+});
+
+/// Reads text from a receipt photo.
+///
+/// Still the stub. Phase 3c replaces it with a channel to the Kotlin plugin,
+/// and 3d puts ML Kit behind that. Because the form treats "no candidates" as
+/// an ordinary outcome, swapping implementations changes no UI code.
+final ocrServiceProvider = Provider<OcrService>((ref) {
+  return const UnavailableOcrService();
 });
 
 /// Subscribes to both repositories so any write refreshes the caller.

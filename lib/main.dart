@@ -43,34 +43,40 @@ class HarvestApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: HarvestTheme.light(),
       darkTheme: HarvestTheme.dark(),
-      home: const _CurrentWeekGate(child: WeekListScreen()),
+      home: const _StartupTasks(child: WeekListScreen()),
     );
   }
 }
 
-/// Makes sure the current week has a budget row before anything renders, and
-/// again whenever the app comes back to the foreground.
+/// Housekeeping that has to happen on launch and on resume.
 ///
-/// The resume case is not theoretical: leave the app open on a Sunday evening
+/// **The current week's budget row.** Leave the app open on a Sunday evening
 /// and pick it up on Monday, and the current week has changed underneath a
-/// process that only ever checked at launch. Without this, Monday shows last
-/// week at the top and no row for the week you are actually in.
-class _CurrentWeekGate extends ConsumerStatefulWidget {
-  const _CurrentWeekGate({required this.child});
+/// process that only checked at launch. Without the resume case, Monday shows
+/// last week at the top and no row for the week you are actually in.
+///
+/// **Orphan photos.** A photo is written the moment it is taken, before the
+/// expense row exists, so abandoning a half-filled form leaves a file nothing
+/// points at. Sweeping on launch keeps that from accumulating silently.
+class _StartupTasks extends ConsumerStatefulWidget {
+  const _StartupTasks({required this.child});
 
   final Widget child;
 
   @override
-  ConsumerState<_CurrentWeekGate> createState() => _CurrentWeekGateState();
+  ConsumerState<_StartupTasks> createState() => _StartupTasksState();
 }
 
-class _CurrentWeekGateState extends ConsumerState<_CurrentWeekGate>
+class _StartupTasksState extends ConsumerState<_StartupTasks>
     with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _ensure());
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _ensure();
+      await _sweepOrphanPhotos();
+    });
   }
 
   @override
@@ -89,6 +95,17 @@ class _CurrentWeekGateState extends ConsumerState<_CurrentWeekGate>
     // Idempotent, so calling it on every resume costs one indexed lookup and
     // leaves an existing week — override included — untouched.
     await ref.read(weekBudgetRepositoryProvider).ensureWeek(now, now: now);
+  }
+
+  /// Deletes photo files with no expense pointing at them.
+  ///
+  /// Launch only, not resume: it touches every file in the directory, and
+  /// nothing can create an orphan while the app is in the background.
+  Future<void> _sweepOrphanPhotos() async {
+    final referenced = await ref
+        .read(expenseRepositoryProvider)
+        .referencedPhotoFiles();
+    await ref.read(imageStoreProvider).sweepOrphans(referenced);
   }
 
   @override

@@ -6,11 +6,11 @@ import 'package:receipt_tracker/data/image_store.dart';
 
 void main() {
   late Directory temp;
-  late ImageStore store;
+  late FileImageStore store;
 
   setUp(() async {
     temp = await Directory.systemTemp.createTemp('receipt_tracker_test');
-    store = ImageStore(temp);
+    store = FileImageStore(temp);
   });
 
   tearDown(() async {

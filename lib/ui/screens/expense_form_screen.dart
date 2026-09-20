@@ -3,7 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:receipt_tracker/models/expense.dart';
+import 'package:receipt_tracker/services/photo_source.dart';
 import 'package:receipt_tracker/state/providers.dart';
+import 'package:receipt_tracker/ui/widgets/receipt_photo.dart';
 import 'package:receipt_tracker/util/budget_rules.dart';
 import 'package:receipt_tracker/util/money.dart';
 import 'package:receipt_tracker/util/week_math.dart';
@@ -33,6 +35,17 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
   late ExpenseCategory _category;
   bool _saving = false;
 
+  /// The id this expense will have.
+  ///
+  /// Generated up front rather than at save time, because a photo has to be
+  /// filed under it the moment it is taken — well before the row exists. A
+  /// photo taken and then abandoned leaves a file with no row, which is
+  /// precisely what the orphan sweep is for.
+  late final String _id;
+
+  String? _photoFile;
+  bool _photoBusy = false;
+
   bool get _isEditing => widget.initial != null;
 
   /// True when the chosen date has moved the expense out of the week it was
@@ -60,6 +73,43 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
     _note = TextEditingController(text: initial?.note ?? '');
     _spentOn = initial?.spentOn ?? ref.read(nowProvider)();
     _category = initial?.category ?? ExpenseCategory.custom;
+    _id = initial?.id ?? const Uuid().v4();
+    _photoFile = initial?.photoFile;
+  }
+
+  Future<void> _addPhoto({required bool fromGallery}) async {
+    final source = ref.read(photoSourceProvider);
+    if (!source.isAvailable) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    final store = ref.read(imageStoreProvider);
+    setState(() => _photoBusy = true);
+
+    try {
+      final captured = fromGallery
+          ? await source.pick()
+          : await source.capture();
+      if (captured == null) return;
+
+      final filename = await store.save(_id, captured.bytes);
+      if (!mounted) return;
+      setState(() => _photoFile = filename);
+    } on PhotoFailure catch (failure) {
+      messenger.showSnackBar(SnackBar(content: Text(failure.userMessage)));
+    } finally {
+      if (mounted) setState(() => _photoBusy = false);
+    }
+  }
+
+  Future<void> _removePhoto() async {
+    final filename = _photoFile;
+    if (filename == null) return;
+
+    setState(() => _photoFile = null);
+    // The file goes too, but only because the user asked. Deleting on expense
+    // deletion would be wrong — undo re-inserts the row, and it would come
+    // back pointing at a photo that no longer exists.
+    await ref.read(imageStoreProvider).delete(filename);
   }
 
   @override
@@ -118,12 +168,13 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
       if (initial == null) {
         await expenses.insert(
           Expense.create(
-            id: const Uuid().v4(),
+            id: _id,
             amountCents: cents,
             spentOn: _spentOn,
             merchant: _merchant.text.trim(),
             category: _category,
             note: note.isEmpty ? null : note,
+            photoFile: _photoFile,
           ),
         );
       } else {
@@ -135,6 +186,8 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
             category: _category,
             note: note.isEmpty ? null : note,
             clearNote: note.isEmpty,
+            photoFile: _photoFile,
+            clearPhoto: _photoFile == null,
           ),
         );
       }
@@ -275,6 +328,16 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
                 ),
               ),
             const SizedBox(height: 16),
+            if (ref.read(photoSourceProvider).isAvailable)
+              ReceiptPhotoField(
+                photoFile: _photoFile,
+                busy: _photoBusy,
+                onCapture: () => _addPhoto(fromGallery: false),
+                onPickFromGallery: () => _addPhoto(fromGallery: true),
+                onRemove: _removePhoto,
+              ),
+            if (ref.read(photoSourceProvider).isAvailable)
+              const SizedBox(height: 16),
             DropdownButtonFormField<ExpenseCategory>(
               initialValue: _category,
               decoration: const InputDecoration(

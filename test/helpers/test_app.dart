@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:receipt_tracker/data/database.dart';
+import 'package:receipt_tracker/data/image_store.dart';
+import 'package:receipt_tracker/services/photo_source.dart';
 import 'package:receipt_tracker/state/providers.dart';
 import 'package:receipt_tracker/ui/theme.dart';
 
@@ -22,12 +24,17 @@ Widget testApp({
   required AppDatabase database,
   required Directory documents,
   DateTime? now,
+  PhotoSource? photoSource,
+  ImageStore? imageStore,
 }) {
   return ProviderScope(
     overrides: [
       appDatabaseProvider.overrideWithValue(database),
       documentsDirectoryProvider.overrideWithValue(documents),
       if (now != null) nowProvider.overrideWithValue(() => now),
+      if (photoSource != null)
+        photoSourceProvider.overrideWithValue(photoSource),
+      if (imageStore != null) imageStoreProvider.overrideWithValue(imageStore),
     ],
     child: MaterialApp(theme: HarvestTheme.light(), home: home),
   );
@@ -48,9 +55,18 @@ Future<void> pumpApp(
   required AppDatabase database,
   required Directory documents,
   DateTime? now,
+  PhotoSource? photoSource,
+  ImageStore? imageStore,
 }) async {
   await tester.pumpWidget(
-    testApp(home: home, database: database, documents: documents, now: now),
+    testApp(
+      home: home,
+      database: database,
+      documents: documents,
+      now: now,
+      photoSource: photoSource,
+      imageStore: imageStore,
+    ),
   );
   await tester.pumpAndSettle(
     const Duration(milliseconds: 100),

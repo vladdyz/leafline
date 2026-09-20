@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:receipt_tracker/models/expense.dart';
 import 'package:receipt_tracker/ui/theme.dart';
+import 'package:receipt_tracker/ui/widgets/receipt_photo.dart';
 import 'package:receipt_tracker/util/budget_rules.dart';
 import 'package:receipt_tracker/util/money.dart';
 
@@ -21,14 +22,19 @@ class ExpenseTile extends StatelessWidget {
 
     return ListTile(
       onTap: onTap,
-      leading: CircleAvatar(
-        backgroundColor: theme.colorScheme.secondaryContainer,
-        child: Icon(
-          categoryIcon(expense.category),
-          size: 20,
-          color: theme.colorScheme.onSecondaryContainer,
-        ),
-      ),
+      // The receipt replaces the category icon when there is one. The
+      // category is still named in the subtitle, so nothing is lost, and a
+      // thumbnail tells you far more at a glance than a generic glyph.
+      leading: expense.hasPhoto
+          ? ReceiptThumbnail(photoFile: expense.photoFile!)
+          : CircleAvatar(
+              backgroundColor: theme.colorScheme.secondaryContainer,
+              child: Icon(
+                categoryIcon(expense.category),
+                size: 20,
+                color: theme.colorScheme.onSecondaryContainer,
+              ),
+            ),
       title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Text(
         '${expense.category.label} \u00b7 '
