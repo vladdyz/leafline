@@ -4,6 +4,11 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+dependencies {
+    implementation("com.google.mlkit:text-recognition:16.0.1")
+    testImplementation("junit:junit:4.13.2")
+}
+
 android {
     namespace = "com.vzolotukhin.receipt_tracker"
     compileSdk = flutter.compileSdkVersion

@@ -10,12 +10,18 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        ocrPlugin.register(flutterEngine.dartExecutor.binaryMessenger)
+        // ML Kit needs a Context to read the image file and its EXIF
+        // orientation. applicationContext rather than `this`, so the plugin
+        // never outlives a reference to a destroyed Activity.
+        ocrPlugin.register(
+            flutterEngine.dartExecutor.binaryMessenger,
+            applicationContext,
+        )
     }
 
     // If `cleanUpFlutterEngine` does not resolve against your Flutter version,
-    // delete this override. It is hygiene, not a requirement — the plugin
-    // lives exactly as long as the activity either way.
+    // delete this override — but note it now also closes the recogniser, which
+    // is worth keeping if you can.
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
         ocrPlugin.unregister()
         super.cleanUpFlutterEngine(flutterEngine)

@@ -1,27 +1,33 @@
 package com.vzolotukhin.receipt_tracker.ocr
 
+import android.content.Context
+import android.net.Uri
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.TextRecognizer
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
+import java.io.IOException
 
 /**
- * Text recognition over a MethodChannel.
+ * Text recognition over a MethodChannel, backed by ML Kit.
  *
- * PHASE 3c: still a stub. It validates the file path and returns a hardcoded
- * list of text blocks without calling ML Kit at all.
- *
- * That is the whole point of this step. The channel and the recognition
- * library are two things that can each go wrong, and debugging them together
- * is considerably harder than debugging them apart. Once a photo produces
- * chips reading 2.75, 3.50, 7.06 and so on, the boundary is proven — and when
- * ML Kit lands in 3d, anything that breaks is unambiguously ML Kit's.
+ * Kotlin recognises text and returns it with its geometry. It makes no
+ * judgement about what any of it means — ranking the amounts happens in Dart,
+ * in `TotalExtractor`, where it can be unit tested against fixture strings
+ * without a device. See decision 0003.
  *
  * Registered from MainActivity:
  *
  *     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
  *         super.configureFlutterEngine(flutterEngine)
- *         ocrPlugin.register(flutterEngine.dartExecutor.binaryMessenger)
+ *         ocrPlugin.register(
+ *             flutterEngine.dartExecutor.binaryMessenger,
+ *             applicationContext,
+ *         )
  *     }
  *
  * Channel contract, documented on both sides of the boundary:
@@ -35,14 +41,7 @@ class OcrPlugin : MethodChannel.MethodCallHandler {
 
     companion object {
         /**
-         * Deliberately not derived from the package name.
-         *
-         * A channel name only has to be unique within the app and identical
-         * on both sides. Tying it to the package invites a mismatch the
-         * moment someone changes their org, and a mismatched channel fails as
-         * MissingPluginException — which reads like the plugin was never
-         * registered rather than like a typo.
-         *
+         * Deliberately not derived from the package name; see decision 0015.
          * This string appears verbatim in `channel_ocr_service.dart`.
          */
         const val CHANNEL = "receipt_tracker/ocr"
@@ -53,8 +52,12 @@ class OcrPlugin : MethodChannel.MethodCallHandler {
     }
 
     private var channel: MethodChannel? = null
+    private var appContext: Context? = null
+    private var recognizer: TextRecognizer? = null
 
-    fun register(messenger: BinaryMessenger) {
+    fun register(messenger: BinaryMessenger, context: Context) {
+        appContext = context.applicationContext
+        recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
         channel = MethodChannel(messenger, CHANNEL).also {
             it.setMethodCallHandler(this)
         }
@@ -63,6 +66,9 @@ class OcrPlugin : MethodChannel.MethodCallHandler {
     fun unregister() {
         channel?.setMethodCallHandler(null)
         channel = null
+        recognizer?.close()
+        recognizer = null
+        appContext = null
     }
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
@@ -80,60 +86,47 @@ class OcrPlugin : MethodChannel.MethodCallHandler {
     }
 
     /**
-     * PHASE 3d replaces this body with:
+     * Every path through this method ends in exactly one `result.success` or
+     * `result.error`.
      *
-     *     val image = InputImage.fromFilePath(context, Uri.fromFile(file))
-     *     TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-     *         .process(image)
-     *         .addOnSuccessListener { text -> result.success(ReceiptTextMapper.toBlocks(text)) }
-     *         .addOnFailureListener { e -> result.error(ERROR_RECOGNITION_FAILED, e.message, null) }
-     *
-     * Note that ML Kit resolves on a background thread. Every path through
-     * the listeners must call result.success or result.error exactly once —
-     * a channel that never replies leaves the Dart future pending forever,
-     * which presents as a spinner that never stops and no error anywhere.
+     * That is the rule worth holding onto. A channel that never replies
+     * leaves the Dart future pending forever, which presents as a spinner
+     * that never stops and no error anywhere — the hardest possible failure
+     * to diagnose from the Flutter side.
      */
     private fun recognize(path: String, result: MethodChannel.Result) {
+        val context = appContext
+        val client = recognizer
+        if (context == null || client == null) {
+            result.error(ERROR_RECOGNITION_FAILED, "Plugin is not registered", null)
+            return
+        }
+
         val file = File(path)
         if (!file.exists()) {
             result.error(ERROR_FILE_NOT_FOUND, "No file at $path", null)
             return
         }
 
-        result.success(STUB_BLOCKS)
+        val image = try {
+            // fromFilePath rather than decoding a Bitmap by hand: it reads the
+            // EXIF orientation and rotates accordingly. A phone photo taken
+            // in portrait is very often stored landscape with a rotation flag,
+            // and text recognition on a sideways receipt finds nothing.
+            InputImage.fromFilePath(context, Uri.fromFile(file))
+        } catch (error: IOException) {
+            result.error(ERROR_DECODE_FAILED, error.message, null)
+            return
+        }
+
+        // No Executor is passed, so both listeners run on the main thread —
+        // which is where a MethodChannel result has to be delivered from.
+        client.process(image)
+            .addOnSuccessListener { text ->
+                result.success(ReceiptTextMapper.toBlocks(text))
+            }
+            .addOnFailureListener { error ->
+                result.error(ERROR_RECOGNITION_FAILED, error.message, null)
+            }
     }
 }
-
-/**
- * Fake recognition output shaped like a real corner-store receipt, including
- * the decoys the extractor has to rank below the true total: a subtotal, tax
- * lines, and a cash-tendered amount larger than the total itself.
- *
- * Identical to `stubReceiptBlocks` in `ocr_service.dart`, so the two sides can
- * be compared directly. The correct answer is 7.06.
- */
-private val STUB_BLOCKS: List<Map<String, Any>> = listOf(
-    block("CORNER MARKET", 40, 30, 300, 40),
-    block("123 QUEEN ST W", 40, 80, 280, 30),
-    block("COFFEE LARGE      2.75", 40, 150, 400, 30),
-    block("BAGEL             3.50", 40, 190, 400, 30),
-    block("SUBTOTAL          6.25", 40, 260, 400, 30),
-    block("HST 13%           0.81", 40, 300, 400, 30),
-    block("TOTAL             7.06", 40, 350, 400, 34),
-    block("CASH             10.00", 40, 400, 400, 30),
-    block("CHANGE            2.94", 40, 440, 400, 30),
-)
-
-private fun block(
-    text: String,
-    left: Int,
-    top: Int,
-    width: Int,
-    height: Int,
-): Map<String, Any> = mapOf(
-    "text" to text,
-    "left" to left,
-    "top" to top,
-    "width" to width,
-    "height" to height,
-)
