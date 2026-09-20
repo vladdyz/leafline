@@ -225,6 +225,18 @@ final weekHistoryProvider = FutureProvider<List<WeekSummary>>((ref) async {
   ];
 });
 
+/// One week's expenses, newest first.
+///
+/// A family because the week is the argument. Re-runs on any write, so an
+/// expense edited from the detail screen updates it without a manual refresh.
+final weekExpensesProvider = FutureProvider.family<List<Expense>, DateTime>((
+  ref,
+  weekStart,
+) {
+  _refreshOnAnyWrite(ref);
+  return ref.watch(expenseRepositoryProvider).forWeek(weekStart);
+});
+
 /// The next few weeks, whether or not they have been materialised yet.
 ///
 /// A week with no row still appears, showing the default it would inherit, so

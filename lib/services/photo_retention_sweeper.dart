@@ -9,16 +9,17 @@ import 'package:receipt_tracker/models/photo_retention.dart';
 /// only `photo_file` becomes null, and the tile renders a placeholder. See
 /// decision 0006.
 class PhotoRetentionSweeper {
-  const PhotoRetentionSweeper({
-    required ExpenseRepository expenses,
-    required ImageStore store,
-  // ignore: prefer_initializing_formals
-  }) : _expenses = expenses,
-       // ignore: prefer_initializing_formals
-       _store = store;
+  // Public fields rather than private ones with an initialiser list.
+  //
+  // `prefer_initializing_formals` wants `required this._expenses`, which is
+  // not legal: a named parameter cannot begin with an underscore. Chasing the
+  // lint therefore produced a second error, and silencing it with an ignore
+  // comment left a rule fighting the language. Nothing here needed to be
+  // private in the first place.
+  const PhotoRetentionSweeper({required this.expenses, required this.store});
 
-  final ExpenseRepository _expenses;
-  final ImageStore _store;
+  final ExpenseRepository expenses;
+  final ImageStore store;
 
   /// Expires photos older than [retention] as of [now]. Returns how many.
   ///
@@ -40,13 +41,13 @@ class PhotoRetentionSweeper {
     final cutoff = retention.cutoffFrom(now);
     if (cutoff == null) return 0;
 
-    final expiring = await _expenses.photoFilesOlderThan(cutoff);
+    final expiring = await expenses.photoFilesOlderThan(cutoff);
     if (expiring.isEmpty) return 0;
 
-    await _expenses.clearPhotosOlderThan(cutoff);
+    await expenses.clearPhotosOlderThan(cutoff);
 
     for (final filename in expiring) {
-      await _store.delete(filename);
+      await store.delete(filename);
     }
     return expiring.length;
   }

@@ -37,12 +37,18 @@ void main() {
       expect(names, contains('week_budgets'));
     });
 
-    test('opens at schema version 3', () async {
+    test('opens at the version the code declares', () async {
       // PRAGMA rather than Database.getVersion(): sqflite's Database does not
       // expose that method here, and the pragma is what openDatabase(version:)
-      // writes and what onUpgrade compares against anyway
+      // writes and what onUpgrade compares against anyway.
+      //
+      // Asserted against the constant rather than a literal. A literal has to
+      // be edited on every schema bump, which is how this test came to say
+      // "version 2" three migrations later. What it actually catches is
+      // openDatabase failing to write the version at all — the migration
+      // tests cover whether the right migration ran.
       final rows = await database.db.rawQuery('PRAGMA user_version');
-      expect(rows.first['user_version'], 3);
+      expect(rows.first['user_version'], AppDatabase.schemaVersion);
     });
 
     test('rejects a negative week budget', () async {

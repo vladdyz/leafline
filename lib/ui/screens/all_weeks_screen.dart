@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:receipt_tracker/state/providers.dart';
+import 'package:receipt_tracker/ui/screens/week_detail_screen.dart';
 import 'package:receipt_tracker/ui/theme.dart';
 import 'package:receipt_tracker/ui/widgets/budget_bar.dart';
 import 'package:receipt_tracker/ui/widgets/week_budget_sheet.dart';
@@ -49,7 +50,9 @@ class AllWeeksScreen extends ConsumerWidget {
               ],
               const _SectionHeader(
                 title: 'History',
-                subtitle: 'Only weeks you were tracking appear here.',
+                subtitle:
+                    'Tap a week to see what you spent. Only weeks you '
+                    'were tracking appear here.',
               ),
               if (weeks.isEmpty)
                 const Padding(
@@ -113,12 +116,11 @@ class _HistoryRow extends StatelessWidget {
         : '';
 
     return ListTile(
-      onTap: () => WeekBudgetSheet.show(
-        context,
-        weekStart: summary.weekStart,
-        currentCents: summary.budgetCents,
-        isOverride: summary.budget.isOverride,
-      ),
+      // Opens the week, not its budget. A finished week's budget is frozen
+      // (decision 0011), so offering to edit it was the app contradicting its
+      // own design — and someone looking at a week from two months ago wants
+      // to see what they bought, not to re-plan it.
+      onTap: () => WeekDetailScreen.open(context, summary),
       leading: Container(
         width: 6,
         height: 40,
