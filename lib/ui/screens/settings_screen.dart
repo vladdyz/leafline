@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:receipt_tracker/models/photo_retention.dart';
 import 'package:receipt_tracker/state/providers.dart';
 import 'package:receipt_tracker/util/budget_rules.dart';
+import 'package:receipt_tracker/util/bytes.dart';
 import 'package:receipt_tracker/util/money.dart';
 
 /// Settings. One setting so far.
@@ -47,6 +49,31 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     if (!mounted) return;
     setState(() => _saving = false);
     messenger.showSnackBar(const SnackBar(content: Text('Budget saved')));
+  }
+
+  /// Saves the retention window and immediately applies it.
+  ///
+  /// Sweeping here rather than waiting for the next launch matters: someone
+  /// who has just shortened the window did so because they want the space
+  /// back, and an app that says "one month" while still holding a year of
+  /// photos is lying about its own setting.
+  Future<void> _saveRetention(PhotoRetention retention) async {
+    final messenger = ScaffoldMessenger.of(context);
+    await ref.read(settingsRepositoryProvider).setPhotoRetention(retention);
+    final removed = await ref
+        .read(photoRetentionSweeperProvider)
+        .sweep(retention: retention, now: ref.read(nowProvider)());
+
+    if (!mounted) return;
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          removed == 0
+              ? 'Photos kept for ${retention.label.toLowerCase()}'
+              : 'Removed ${formatPhotoCount(removed).toLowerCase()}',
+        ),
+      ),
+    );
   }
 
   @override
@@ -140,6 +167,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
             ),
             const Divider(height: 40),
+            Text('Receipt photos', style: theme.textTheme.titleMedium),
+            const SizedBox(height: 8),
+            Text(
+              'Photos are kept for a while and then removed. Your expenses '
+              'are never touched \u2014 the amount, date and category stay '
+              'forever, and only the picture ages out.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 16),
+            _RetentionField(onChanged: _saveRetention),
+            const SizedBox(height: 12),
+            const _StorageUsageRow(),
+            const Divider(height: 40),
             Text(
               'Warnings appear at $kApproachingPercent% of the budget and '
               'again when it is passed.',
@@ -150,6 +192,66 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _RetentionField extends ConsumerWidget {
+  const _RetentionField({required this.onChanged});
+
+  final ValueChanged<PhotoRetention> onChanged;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final retention = ref.watch(photoRetentionProvider);
+
+    return DropdownButtonFormField<PhotoRetention>(
+      initialValue: retention.value ?? PhotoRetention.fallback,
+      decoration: const InputDecoration(
+        labelText: 'Keep photos for',
+        border: OutlineInputBorder(),
+      ),
+      items: <DropdownMenuItem<PhotoRetention>>[
+        for (final option in PhotoRetention.values)
+          DropdownMenuItem<PhotoRetention>(
+            value: option,
+            child: Text(option.label),
+          ),
+      ],
+      onChanged: (value) {
+        if (value != null) onChanged(value);
+      },
+    );
+  }
+}
+
+class _StorageUsageRow extends ConsumerWidget {
+  const _StorageUsageRow();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final usage = ref.watch(storageUsageProvider);
+    final value = usage.value;
+
+    return Row(
+      children: <Widget>[
+        Icon(
+          Icons.sd_storage_outlined,
+          size: 18,
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+        const SizedBox(width: 8),
+        Text(
+          value == null
+              ? 'Checking storage\u2026'
+              : '${formatPhotoCount(value.photoCount)} \u00b7 '
+                    '${formatBytes(value.bytes)}',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
     );
   }
 }

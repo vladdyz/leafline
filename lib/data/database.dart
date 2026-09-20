@@ -14,12 +14,13 @@ class AppDatabase {
   /// [_onUpgrade]. Never edit [_onCreate] to make a change — an existing
   /// install will never run it again.
   ///
-  /// v2 added [weekBudgetsTable].
-  static const int schemaVersion = 2;
+  /// v2 added [weekBudgetsTable]. v3 added [settingsTable].
+  static const int schemaVersion = 3;
 
   static const String expensesTable = 'expenses';
   static const String budgetsTable = 'budgets';
   static const String weekBudgetsTable = 'week_budgets';
+  static const String settingsTable = 'settings';
 
   final Database db;
 
@@ -86,6 +87,7 @@ class AppDatabase {
     await db.insert(budgetsTable, Budget.unset().toMap());
 
     await _createWeekBudgets(db);
+    await _createSettings(db);
   }
 
   /// One row per tracked week.
@@ -105,6 +107,24 @@ class AppDatabase {
     ''');
   }
 
+  /// Key-value storage for app preferences.
+  ///
+  /// A table rather than `SharedPreferences` for two reasons: there is
+  /// already a database open, and a preference that lives beside the data it
+  /// governs cannot get out of step with it during a backup or a restore.
+  ///
+  /// Deliberately untyped. Every value is a string and the repository parses
+  /// it, so adding the notification and app-lock toggles in the rest of
+  /// Phase 4 needs no further migration.
+  static Future<void> _createSettings(Database db) async {
+    await db.execute('''
+      CREATE TABLE $settingsTable (
+        key    TEXT PRIMARY KEY,
+        value  TEXT NOT NULL
+      )
+    ''');
+  }
+
   /// The migration ladder.
   ///
   /// Each version adds a branch; none of them ever edits an earlier one,
@@ -119,6 +139,12 @@ class AppDatabase {
     if (oldVersion < 2) {
       await _createWeekBudgets(db);
       await _backfillWeekBudgets(db);
+    }
+    if (oldVersion < 3) {
+      await _createSettings(db);
+      // No seeding. An absent key reads as the default, so an install that
+      // upgrades behaves identically to one that never set the preference —
+      // and the default can change later without a second migration.
     }
   }
 
@@ -175,6 +201,7 @@ class AppDatabase {
   Future<void> clear() async {
     await db.delete(expensesTable);
     await db.delete(weekBudgetsTable);
+    await db.delete(settingsTable);
     await db.delete(budgetsTable);
     await db.insert(budgetsTable, Budget.unset().toMap());
   }

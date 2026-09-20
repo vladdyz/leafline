@@ -37,12 +37,12 @@ void main() {
       expect(names, contains('week_budgets'));
     });
 
-    test('opens at schema version 2', () async {
+    test('opens at schema version 3', () async {
       // PRAGMA rather than Database.getVersion(): sqflite's Database does not
       // expose that method here, and the pragma is what openDatabase(version:)
       // writes and what onUpgrade compares against anyway
       final rows = await database.db.rawQuery('PRAGMA user_version');
-      expect(rows.first['user_version'], 2);
+      expect(rows.first['user_version'], 3);
     });
 
     test('rejects a negative week budget', () async {

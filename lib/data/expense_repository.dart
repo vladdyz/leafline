@@ -170,6 +170,21 @@ class ExpenseRepository {
     return rows.map((r) => r['photo_file']! as String).toSet();
   }
 
+  /// Photo filenames on expenses dated before [cutoff].
+  ///
+  /// Read before [clearPhotosOlderThan] nulls the rows, because afterwards
+  /// there is nothing left pointing at the files and the sweep would have
+  /// nothing to delete.
+  Future<Set<String>> photoFilesOlderThan(DateTime cutoff) async {
+    final rows = await _db.query(
+      AppDatabase.expensesTable,
+      columns: <String>['photo_file'],
+      where: 'photo_file IS NOT NULL AND spent_on < ?',
+      whereArgs: <Object?>[isoDate(cutoff)],
+    );
+    return rows.map((r) => r['photo_file']! as String).toSet();
+  }
+
   /// Clears `photo_file` on expenses whose photo has expired, leaving every
   /// other column untouched.
   ///

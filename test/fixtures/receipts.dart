@@ -189,4 +189,43 @@ const List<ReceiptFixture> receiptFixtures = <ReceiptFixture>[
         'and would stop working on a receipt that printed a number beside its '
         'logo.',
   ),
+  ReceiptFixture(
+    name: 'phone number in the header',
+    expectedCents: 2100,
+    lines: <String>[
+      'SPOOKY SUPPLIES',
+      'TEL 905.555.0143',
+      'WWW.SPOOKY.COM',
+      'MASK              8.50',
+      'CAPE             10.00',
+      'SUBTOTAL         18.50',
+      'HST               2.50',
+      'TOTAL            21.00',
+    ],
+    note:
+        'From a real receipt. `905.555.0143` contains `905.55`, which is '
+        'shaped exactly like money and sat in the header where a large figure '
+        'looks plausible — it ranked first, and appeared nowhere on the paper. '
+        'The boundary guard rejects any amount touching another digit or dot.',
+  ),
+  ReceiptFixture(
+    name: 'warehouse receipt with a separate amount line',
+    expectedCents: 66258,
+    lines: <String>[
+      'COSTCO WHOLESALE',
+      'MEMBER 111222333',
+      'GROCERIES       412.10',
+      'HOUSEHOLD       186.44',
+      'SUBTOTAL        598.54',
+      'GST              64.04',
+      'TOTAL           662.58',
+      'Amount:         662.58',
+      'MasterCard      662.58',
+    ],
+    note:
+        'From a real receipt. The total is printed three times, once on a '
+        'card line. Worth keeping because the first photo of it cropped the '
+        'total out — the figure was white on a black band, which ML Kit does '
+        'not read. Re-shooting to include these lower lines fixed it.',
+  ),
 ];

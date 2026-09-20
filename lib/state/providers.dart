@@ -6,12 +6,15 @@ import 'package:path/path.dart' as p;
 import 'package:receipt_tracker/data/database.dart';
 import 'package:receipt_tracker/data/expense_repository.dart';
 import 'package:receipt_tracker/data/image_store.dart';
+import 'package:receipt_tracker/data/settings_repository.dart';
 import 'package:receipt_tracker/data/week_budget_repository.dart';
 import 'package:receipt_tracker/models/budget.dart';
 import 'package:receipt_tracker/models/expense.dart';
+import 'package:receipt_tracker/models/photo_retention.dart';
 import 'package:receipt_tracker/models/week_budget.dart';
 import 'package:receipt_tracker/services/channel_ocr_service.dart';
 import 'package:receipt_tracker/services/ocr_service.dart';
+import 'package:receipt_tracker/services/photo_retention_sweeper.dart';
 import 'package:receipt_tracker/services/photo_source.dart';
 import 'package:receipt_tracker/util/budget_rules.dart';
 import 'package:receipt_tracker/util/week_math.dart';
@@ -58,6 +61,19 @@ final imageStoreProvider = Provider<ImageStore>((ref) {
   return FileImageStore(Directory(p.join(root.path, 'receipts')));
 });
 
+final settingsRepositoryProvider = Provider<SettingsRepository>((ref) {
+  final repository = SettingsRepository(ref.watch(appDatabaseProvider));
+  ref.onDispose(repository.dispose);
+  return repository;
+});
+
+final photoRetentionSweeperProvider = Provider<PhotoRetentionSweeper>((ref) {
+  return PhotoRetentionSweeper(
+    expenses: ref.watch(expenseRepositoryProvider),
+    store: ref.watch(imageStoreProvider),
+  );
+});
+
 /// Where receipt photos come from.
 ///
 /// Overridden in tests with a fake, which is the whole reason it is an
@@ -99,6 +115,32 @@ void _refreshOnAnyWrite(Ref ref) {
     }
   });
 }
+
+/// How long photos are kept.
+final photoRetentionProvider = FutureProvider<PhotoRetention>((ref) {
+  final settings = ref.watch(settingsRepositoryProvider);
+  final subscription = settings.changes.listen((_) => ref.invalidateSelf());
+  ref.onDispose(subscription.cancel);
+  return settings.getPhotoRetention();
+});
+
+/// What the photo library currently costs.
+///
+/// Refreshed on any expense write, because deleting an expense eventually
+/// frees its photo, and on any settings write, because changing the retention
+/// window runs a sweep.
+final storageUsageProvider = FutureProvider<StorageUsage>((ref) async {
+  _refreshOnAnyWrite(ref);
+  final settings = ref.watch(settingsRepositoryProvider);
+  final subscription = settings.changes.listen((_) => ref.invalidateSelf());
+  ref.onDispose(subscription.cancel);
+
+  final store = ref.watch(imageStoreProvider);
+  return StorageUsage(
+    photoCount: await store.count(),
+    bytes: await store.totalBytes(),
+  );
+});
 
 /// The standing default budget that new weeks inherit.
 final defaultBudgetProvider = FutureProvider<Budget>((ref) async {
@@ -226,6 +268,23 @@ const int kRecentWeekCount = 4;
 
 /// How many weeks ahead the planning list offers.
 const int kUpcomingWeekCount = 4;
+
+/// What the stored photos add up to.
+class StorageUsage {
+  const StorageUsage({required this.photoCount, required this.bytes});
+
+  final int photoCount;
+  final int bytes;
+
+  @override
+  bool operator ==(Object other) =>
+      other is StorageUsage &&
+      other.photoCount == photoCount &&
+      other.bytes == bytes;
+
+  @override
+  int get hashCode => Object.hash(photoCount, bytes);
+}
 
 /// One week with everything the main list needs to draw it.
 class WeekView {

@@ -182,6 +182,36 @@ void main() {
       expect(result.map((c) => c.cents), contains(260));
     });
 
+    test('a dotted phone number yields no amounts at all', () {
+      // The bug this guard exists for. `905.555.0143` contains `905.55`,
+      // which parses cleanly and is nowhere on the receipt.
+      expect(extractLines(<String>['TEL 905.555.0143']), isEmpty);
+    });
+
+    test('a toll-free number yields no amounts', () {
+      expect(extractLines(<String>['1.800.555.1234']), isEmpty);
+    });
+
+    test('an amount touching a digit on either side is rejected', () {
+      expect(extractLines(<String>['416.555.9876']), isEmpty);
+    });
+
+    test('a real amount beside a phone number still parses', () {
+      final result = extractLines(<String>[
+        'TEL 905.555.0143',
+        'TOTAL            21.00',
+      ]);
+      expect(result.map((c) => c.cents), <int>[2100]);
+    });
+
+    test('a contact line is penalised even if it holds an amount', () {
+      final result = extractLines(<String>[
+        'WWW.SHOP.COM      99.00',
+        'TOTAL             21.00',
+      ]);
+      expect(result.first.cents, 2100);
+    });
+
     test('zero amounts are dropped', () {
       // An unwritten tip line is not a candidate.
       final result = extractLines(<String>[

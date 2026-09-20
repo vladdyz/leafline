@@ -38,6 +38,12 @@ class TotalExtractor {
   /// Tips and gratuity, which are usually written in by hand and often blank.
   static const int scoreTip = -3;
 
+  /// Phone numbers, web addresses, store contact lines.
+  ///
+  /// These carry no money, and on a receipt header they sit exactly where a
+  /// large number would look plausible.
+  static const int scoreContactInfo = -4;
+
   /// Totals print near the bottom.
   static const int scoreLowOnReceipt = 1;
 
@@ -69,6 +75,10 @@ class TotalExtractor {
     r'\b(tip|gratuity|service\s*charge)\b',
     caseSensitive: false,
   );
+  static final RegExp _contact = RegExp(
+    r'\b(tel|phone|fax|www)\b|\.(com|ca|net|org)\b',
+    caseSensitive: false,
+  );
 
   /// Ranked candidates, best first, at most [limit] of them.
   static List<AmountCandidate> extract(List<OcrBlock> blocks, {int limit = 3}) {
@@ -88,10 +98,22 @@ class TotalExtractor {
     final found = <_Found>[];
     for (final line in lines) {
       for (final match in _amount.allMatches(line.text)) {
+        final before = match.start > 0 ? line.text[match.start - 1] : '';
+        final after = match.end < line.text.length ? line.text[match.end] : '';
+
         // A percentage is not money. `HST 13.00%` would otherwise contribute
         // a candidate that looks perfectly well formed.
-        final after = match.end < line.text.length ? line.text[match.end] : '';
         if (after == '%') continue;
+
+        // Nor is a fragment of a longer dotted run. A phone number written
+        // as `905.555.0143` contains `905.55`, which is shaped exactly like
+        // money, lands in a receipt header where a large figure looks
+        // plausible, and appears nowhere a human would look for it.
+        //
+        // Found in the wild on a real receipt: the top-ranked candidate was
+        // an amount over $100 that was not printed anywhere on the paper.
+        if (before == '.' || _isDigit(before)) continue;
+        if (after == '.' || _isDigit(after)) continue;
 
         final cents = parseAmountToCents(match.group(0)!);
         if (cents == null || cents == 0) continue;
@@ -130,6 +152,10 @@ class TotalExtractor {
       if (_tip.hasMatch(text)) {
         score += scoreTip;
         reasons.add('tip line');
+      }
+      if (_contact.hasMatch(text)) {
+        score += scoreContactInfo;
+        reasons.add('contact line');
       }
       if (item.line.centerY >= lowWaterMark) {
         score += scoreLowOnReceipt;
@@ -208,6 +234,12 @@ class AmountCandidate {
   @override
   String toString() =>
       'AmountCandidate($cents, score $score, "${reasons.join(', ')}")';
+}
+
+bool _isDigit(String character) {
+  if (character.isEmpty) return false;
+  final code = character.codeUnitAt(0);
+  return code >= 0x30 && code <= 0x39;
 }
 
 class _Found {

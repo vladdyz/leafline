@@ -58,6 +58,10 @@ class HarvestApp extends StatelessWidget {
 /// **Orphan photos.** A photo is written the moment it is taken, before the
 /// expense row exists, so abandoning a half-filled form leaves a file nothing
 /// points at. Sweeping on launch keeps that from accumulating silently.
+///
+/// **Expired photos.** Photos older than the retention window are removed and
+/// their rows' `photo_file` nulled. The expenses stay; only the pictures age
+/// out.
 class _StartupTasks extends ConsumerStatefulWidget {
   const _StartupTasks({required this.child});
 
@@ -75,6 +79,11 @@ class _StartupTasksState extends ConsumerState<_StartupTasks>
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _ensure();
+      // Retention first, then orphans. Expiring a photo deletes its file
+      // directly, so running orphans afterwards is the cheaper order — it
+      // sweeps a directory that is already smaller, and anything the
+      // retention pass failed to delete still gets collected.
+      await _sweepExpiredPhotos();
       await _sweepOrphanPhotos();
     });
   }
@@ -95,6 +104,19 @@ class _StartupTasksState extends ConsumerState<_StartupTasks>
     // Idempotent, so calling it on every resume costs one indexed lookup and
     // leaves an existing week — override included — untouched.
     await ref.read(weekBudgetRepositoryProvider).ensureWeek(now, now: now);
+  }
+
+  /// Removes photos that have outlived the retention window.
+  ///
+  /// Launch only. The window is measured in months, so there is no case where
+  /// resuming the app mid-session crosses it in a way worth acting on.
+  Future<void> _sweepExpiredPhotos() async {
+    final retention = await ref
+        .read(settingsRepositoryProvider)
+        .getPhotoRetention();
+    await ref
+        .read(photoRetentionSweeperProvider)
+        .sweep(retention: retention, now: ref.read(nowProvider)());
   }
 
   /// Deletes photo files with no expense pointing at them.
