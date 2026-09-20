@@ -1,10 +1,15 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:receipt_tracker/models/expense.dart';
+import 'package:receipt_tracker/models/ocr_block.dart';
+import 'package:receipt_tracker/services/ocr_service.dart';
 import 'package:receipt_tracker/services/photo_source.dart';
+import 'package:receipt_tracker/services/total_extractor.dart';
 import 'package:receipt_tracker/state/providers.dart';
+import 'package:receipt_tracker/ui/widgets/amount_chips.dart';
 import 'package:receipt_tracker/ui/widgets/receipt_photo.dart';
 import 'package:receipt_tracker/util/budget_rules.dart';
 import 'package:receipt_tracker/util/money.dart';
@@ -46,6 +51,18 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
   String? _photoFile;
   bool _photoBusy = false;
 
+  /// Amounts read off the receipt, best first. Empty is the ordinary case.
+  List<AmountCandidate> _candidates = const <AmountCandidate>[];
+
+  /// Everything the recogniser saw, kept on the expense.
+  ///
+  /// This is what turns a receipt that fools the extractor into a fixture:
+  /// read it back off the row, paste the lines into `receiptFixtures`, and
+  /// the heuristic improves precisely where it failed.
+  String? _ocrRawText;
+
+  bool _ocrRunning = false;
+
   bool get _isEditing => widget.initial != null;
 
   /// True when the chosen date has moved the expense out of the week it was
@@ -75,6 +92,65 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
     _category = initial?.category ?? ExpenseCategory.custom;
     _id = initial?.id ?? const Uuid().v4();
     _photoFile = initial?.photoFile;
+    _ocrRawText = initial?.ocrRawText;
+  }
+
+  /// Reads the receipt and offers what it finds.
+  ///
+  /// Every failure path here ends the same way: no chips. Recognition that
+  /// finds nothing, a platform with no OCR, an unregistered channel and a
+  /// photo of a blank wall are indistinguishable from the form's point of
+  /// view, and should be — in all four cases you type the amount, which was
+  /// always an option.
+  Future<void> _readReceipt(String filename) async {
+    final ocr = ref.read(ocrServiceProvider);
+    if (!ocr.isAvailable) return;
+
+    final store = ref.read(imageStoreProvider);
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() {
+      _ocrRunning = true;
+      _candidates = const <AmountCandidate>[];
+    });
+
+    try {
+      final blocks = await ocr.recognize(store.fileFor(filename).path);
+      if (!mounted) return;
+      setState(() {
+        _candidates = TotalExtractor.extract(blocks);
+        _ocrRawText = blocks.isEmpty
+            ? null
+            : groupIntoLines(blocks).map((line) => line.text).join('\n');
+      });
+      if (blocks.isEmpty) {
+        _report(messenger, 'read the photo but found no text');
+      }
+    } on OcrFailure catch (failure) {
+      _report(messenger, failure.message ?? failure.kind.name);
+    } finally {
+      if (mounted) setState(() => _ocrRunning = false);
+    }
+  }
+
+  /// Says what went wrong, in debug builds only.
+  ///
+  /// Release stays silent on purpose: someone standing at a till with a
+  /// receipt can do nothing useful with "no plugin is registered on
+  /// receipt_tracker/ocr", and the amount field was always the primary path.
+  ///
+  /// But silence is also how a channel that was never wired up goes
+  /// unnoticed, because an unregistered plugin and an unreadable receipt look
+  /// identical from here. So in debug the reason is shown.
+  void _report(ScaffoldMessengerState messenger, String reason) {
+    if (!kDebugMode) return;
+    messenger
+      ..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(
+          content: Text('OCR: $reason'),
+          duration: const Duration(seconds: 6),
+        ),
+      );
   }
 
   Future<void> _addPhoto({required bool fromGallery}) async {
@@ -94,6 +170,7 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
       final filename = await store.save(_id, captured.bytes);
       if (!mounted) return;
       setState(() => _photoFile = filename);
+      await _readReceipt(filename);
     } on PhotoFailure catch (failure) {
       messenger.showSnackBar(SnackBar(content: Text(failure.userMessage)));
     } finally {
@@ -105,7 +182,11 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
     final filename = _photoFile;
     if (filename == null) return;
 
-    setState(() => _photoFile = null);
+    setState(() {
+      _photoFile = null;
+      _candidates = const <AmountCandidate>[];
+      _ocrRawText = null;
+    });
     // The file goes too, but only because the user asked. Deleting on expense
     // deletion would be wrong — undo re-inserts the row, and it would come
     // back pointing at a photo that no longer exists.
@@ -175,6 +256,7 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
             category: _category,
             note: note.isEmpty ? null : note,
             photoFile: _photoFile,
+            ocrRawText: _ocrRawText,
           ),
         );
       } else {
@@ -188,6 +270,8 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
             clearNote: note.isEmpty,
             photoFile: _photoFile,
             clearPhoto: _photoFile == null,
+            ocrRawText: _ocrRawText,
+            clearOcrText: _ocrRawText == null,
           ),
         );
       }
@@ -294,6 +378,14 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
                   return 'Not a valid amount';
                 }
                 return null;
+              },
+            ),
+            AmountChips(
+              candidates: _candidates,
+              running: _ocrRunning,
+              onSelected: (candidate) {
+                _amount.text = formatCents(candidate.cents, withSymbol: false);
+                _formKey.currentState?.validate();
               },
             ),
             const SizedBox(height: 16),

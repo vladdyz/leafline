@@ -10,6 +10,7 @@ import 'package:receipt_tracker/data/week_budget_repository.dart';
 import 'package:receipt_tracker/models/budget.dart';
 import 'package:receipt_tracker/models/expense.dart';
 import 'package:receipt_tracker/models/week_budget.dart';
+import 'package:receipt_tracker/services/channel_ocr_service.dart';
 import 'package:receipt_tracker/services/ocr_service.dart';
 import 'package:receipt_tracker/services/photo_source.dart';
 import 'package:receipt_tracker/util/budget_rules.dart';
@@ -70,11 +71,18 @@ final photoSourceProvider = Provider<PhotoSource>((ref) {
 
 /// Reads text from a receipt photo.
 ///
-/// Still the stub. Phase 3c replaces it with a channel to the Kotlin plugin,
-/// and 3d puts ML Kit behind that. Because the form treats "no candidates" as
-/// an ordinary outcome, swapping implementations changes no UI code.
+/// On Android this is the channel to the Kotlin plugin — which, until Phase
+/// 3d, answers with a hardcoded receipt rather than reading the photo. So
+/// chips will appear and they will say 2.75, 3.50, 7.06 regardless of what
+/// you photographed. That is the point of the step: it proves the boundary
+/// works before ML Kit is in the picture to blame.
+///
+/// Everywhere else, the unavailable implementation. The form treats "no
+/// candidates" as an ordinary outcome, so no UI code cares which is in place.
 final ocrServiceProvider = Provider<OcrService>((ref) {
-  return const UnavailableOcrService();
+  return Platform.isAndroid
+      ? const ChannelOcrService()
+      : const UnavailableOcrService();
 });
 
 /// Subscribes to both repositories so any write refreshes the caller.

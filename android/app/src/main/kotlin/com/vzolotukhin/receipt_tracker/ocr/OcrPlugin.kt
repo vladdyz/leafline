@@ -8,21 +8,20 @@ import java.io.File
 /**
  * Text recognition over a MethodChannel.
  *
- * PHASE 0: this is a stub. It validates the file path and then returns a
- * hardcoded list of text blocks without calling ML Kit at all.
+ * PHASE 3c: still a stub. It validates the file path and returns a hardcoded
+ * list of text blocks without calling ML Kit at all.
  *
- * That is deliberate. The channel and the recognition library are two
- * separate things that can each go wrong, and debugging them together is
- * considerably harder than debugging them apart. Get this stub returning
- * its fake blocks to Dart first. Once that round trip works, swapping the
- * body of [recognize] for a real ML Kit call is a contained change, and any
- * breakage afterwards is unambiguously ML Kit's.
+ * That is the whole point of this step. The channel and the recognition
+ * library are two things that can each go wrong, and debugging them together
+ * is considerably harder than debugging them apart. Once a photo produces
+ * chips reading 2.75, 3.50, 7.06 and so on, the boundary is proven — and when
+ * ML Kit lands in 3d, anything that breaks is unambiguously ML Kit's.
  *
- * Register from MainActivity:
+ * Registered from MainActivity:
  *
  *     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
  *         super.configureFlutterEngine(flutterEngine)
- *         OcrPlugin().register(flutterEngine.dartExecutor.binaryMessenger)
+ *         ocrPlugin.register(flutterEngine.dartExecutor.binaryMessenger)
  *     }
  *
  * Channel contract, documented on both sides of the boundary:
@@ -35,7 +34,18 @@ import java.io.File
 class OcrPlugin : MethodChannel.MethodCallHandler {
 
     companion object {
-        const val CHANNEL = "com.example.receipt_tracker/ocr"
+        /**
+         * Deliberately not derived from the package name.
+         *
+         * A channel name only has to be unique within the app and identical
+         * on both sides. Tying it to the package invites a mismatch the
+         * moment someone changes their org, and a mismatched channel fails as
+         * MissingPluginException — which reads like the plugin was never
+         * registered rather than like a typo.
+         *
+         * This string appears verbatim in `channel_ocr_service.dart`.
+         */
+        const val CHANNEL = "receipt_tracker/ocr"
 
         const val ERROR_FILE_NOT_FOUND = "FILE_NOT_FOUND"
         const val ERROR_DECODE_FAILED = "DECODE_FAILED"
@@ -70,7 +80,7 @@ class OcrPlugin : MethodChannel.MethodCallHandler {
     }
 
     /**
-     * PHASE 3 replaces this body with:
+     * PHASE 3d replaces this body with:
      *
      *     val image = InputImage.fromFilePath(context, Uri.fromFile(file))
      *     TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
@@ -98,6 +108,9 @@ class OcrPlugin : MethodChannel.MethodCallHandler {
  * Fake recognition output shaped like a real corner-store receipt, including
  * the decoys the extractor has to rank below the true total: a subtotal, tax
  * lines, and a cash-tendered amount larger than the total itself.
+ *
+ * Identical to `stubReceiptBlocks` in `ocr_service.dart`, so the two sides can
+ * be compared directly. The correct answer is 7.06.
  */
 private val STUB_BLOCKS: List<Map<String, Any>> = listOf(
     block("CORNER MARKET", 40, 30, 300, 40),

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:receipt_tracker/data/database.dart';
 import 'package:receipt_tracker/data/image_store.dart';
+import 'package:receipt_tracker/services/ocr_service.dart';
 import 'package:receipt_tracker/services/photo_source.dart';
 import 'package:receipt_tracker/state/providers.dart';
 import 'package:receipt_tracker/ui/theme.dart';
@@ -26,6 +27,7 @@ Widget testApp({
   DateTime? now,
   PhotoSource? photoSource,
   ImageStore? imageStore,
+  OcrService? ocrService,
 }) {
   return ProviderScope(
     overrides: [
@@ -35,6 +37,7 @@ Widget testApp({
       if (photoSource != null)
         photoSourceProvider.overrideWithValue(photoSource),
       if (imageStore != null) imageStoreProvider.overrideWithValue(imageStore),
+      if (ocrService != null) ocrServiceProvider.overrideWithValue(ocrService),
     ],
     child: MaterialApp(theme: HarvestTheme.light(), home: home),
   );
@@ -57,6 +60,7 @@ Future<void> pumpApp(
   DateTime? now,
   PhotoSource? photoSource,
   ImageStore? imageStore,
+  OcrService? ocrService,
 }) async {
   await tester.pumpWidget(
     testApp(
@@ -66,6 +70,7 @@ Future<void> pumpApp(
       now: now,
       photoSource: photoSource,
       imageStore: imageStore,
+      ocrService: ocrService,
     ),
   );
   await tester.pumpAndSettle(
