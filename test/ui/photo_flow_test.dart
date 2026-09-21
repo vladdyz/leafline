@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:receipt_tracker/data/database.dart';
 import 'package:receipt_tracker/data/expense_repository.dart';
-//import 'package:receipt_tracker/data/image_store.dart';
 import 'package:receipt_tracker/data/week_budget_repository.dart';
 import 'package:receipt_tracker/services/photo_source.dart';
 import 'package:receipt_tracker/ui/screens/expense_form_screen.dart';
@@ -191,9 +190,17 @@ void main() {
       expect(await store.count(), 1);
       expect(await expenses.count(), 0);
 
-      // Which is exactly what the startup sweep is for.
       final referenced = await expenses.referencedPhotoFiles();
-      expect(await store.sweepOrphans(referenced), 1);
+
+      // Not yet. The photo was taken seconds ago, and an unreferenced file
+      // that new is far more likely to be one the user is still attaching
+      // than one they abandoned — decision 0020.
+      expect(await store.sweepOrphans(referenced), 0);
+      expect(await store.count(), 1);
+
+      // An hour later, with the form long gone, it is genuinely abandoned.
+      final later = DateTime.now().add(const Duration(hours: 2));
+      expect(await store.sweepOrphans(referenced, now: later), 1);
       expect(await store.count(), 0);
     });
   });

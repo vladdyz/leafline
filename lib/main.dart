@@ -48,7 +48,14 @@ class HarvestApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: HarvestTheme.light(),
       darkTheme: HarvestTheme.dark(),
-      home: const _AppLockGate(child: _StartupTasks(child: WeekListScreen())),
+      // builder, not home. `home` puts the gate INSIDE the Navigator, which
+      // had two consequences: the lock screen rendered underneath any pushed
+      // route (so it hid nothing while a form was open), and switching
+      // between LockScreen and the child tore down and remounted
+      // _StartupTasks — re-running the orphan sweep on every unlock.
+      builder: (context, child) =>
+          _AppLockGate(child: child ?? const SizedBox.shrink()),
+      home: const _StartupTasks(child: WeekListScreen()),
     );
   }
 }
@@ -270,11 +277,19 @@ class _AppLockGateState extends ConsumerState<_AppLockGate>
 
   @override
   Widget build(BuildContext context) {
-    // The child stays built underneath rather than being torn down, so
-    // unlocking returns to exactly where the user was. It is covered, not
-    // discarded.
-    return _locked
-        ? LockScreen(onUnlock: _unlock, busy: _prompting)
-        : widget.child;
+    // A Stack, not a ternary. The previous version claimed the child stayed
+    // built and it did not — returning a different widget type destroys the
+    // element and rebuilds it from scratch, taking every initState with it.
+    //
+    // Stacked, the child is genuinely covered rather than discarded.
+    return Stack(
+      children: <Widget>[
+        widget.child,
+        if (_locked)
+          Positioned.fill(
+            child: LockScreen(onUnlock: _unlock, busy: _prompting),
+          ),
+      ],
+    );
   }
 }

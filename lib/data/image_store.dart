@@ -36,11 +36,21 @@ abstract interface class ImageStore {
   /// Every stored photo filename.
   Future<Set<String>> listFilenames();
 
-  /// Stored photos with no row pointing at them.
-  Future<Set<String>> orphans(Set<String> referenced);
+  /// How long a file is protected from the orphan sweep after being written.
+  ///
+  /// A photo is written when it is taken, before the expense row exists, so
+  /// between the shutter and the save it is genuinely an orphan. The sweep
+  /// was only ever meant to run at launch, where no form can be open — but
+  /// an assumption about when code runs is not a guarantee, and this one
+  /// turned out to be false.
+  static const Duration orphanGracePeriod = Duration(hours: 1);
+
+  /// Stored photos with no row pointing at them and older than
+  /// [orphanGracePeriod].
+  Future<Set<String>> orphans(Set<String> referenced, {DateTime? now});
 
   /// Deletes every orphan and returns how many went.
-  Future<int> sweepOrphans(Set<String> referenced);
+  Future<int> sweepOrphans(Set<String> referenced, {DateTime? now});
 
   /// Total bytes used by stored photos.
   Future<int> totalBytes();
@@ -118,20 +128,45 @@ class FileImageStore implements ImageStore {
         .toSet();
   }
 
-  /// Files on disk with no row pointing at them.
+  /// Files on disk with no row pointing at them, older than the grace period.
   ///
   /// These accumulate when the app is killed between writing a photo and
   /// saving its expense.
+  ///
+  /// The age check is the important part. A photo is written when it is taken,
+  /// before the expense row exists, so between the shutter and the save it is
+  /// genuinely unreferenced — and a sweep running in that window deletes a
+  /// photo the user is still in the middle of attaching.
   @override
-  Future<Set<String>> orphans(Set<String> referenced) async {
+  Future<Set<String>> orphans(Set<String> referenced, {DateTime? now}) async {
     final onDisk = await listFilenames();
-    return onDisk.difference(referenced);
+    final unreferenced = onDisk.difference(referenced);
+    if (unreferenced.isEmpty) return unreferenced;
+
+    final cutoff = (now ?? DateTime.now()).subtract(
+      ImageStore.orphanGracePeriod,
+    );
+
+    return <String>{
+      for (final filename in unreferenced)
+        if (_writtenBefore(filename, cutoff)) filename,
+    };
+  }
+
+  /// Whether a file is old enough to count as abandoned.
+  ///
+  /// A file that vanished between listing and stat-ing counts as sweepable —
+  /// deleting something already gone is a no-op.
+  bool _writtenBefore(String filename, DateTime cutoff) {
+    final file = fileFor(filename);
+    if (!file.existsSync()) return true;
+    return file.lastModifiedSync().isBefore(cutoff);
   }
 
   /// Deletes every orphan and returns how many went.
   @override
-  Future<int> sweepOrphans(Set<String> referenced) async {
-    final toDelete = await orphans(referenced);
+  Future<int> sweepOrphans(Set<String> referenced, {DateTime? now}) async {
+    final toDelete = await orphans(referenced, now: now);
     for (final filename in toDelete) {
       await delete(filename);
     }

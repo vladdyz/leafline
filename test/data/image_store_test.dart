@@ -97,12 +97,37 @@ void main() {
   });
 
   group('orphan sweep', () {
+    /// Puts a file far enough in the past to clear the grace period.
+    ///
+    /// Everything the sweep is meant to collect has been sitting there since
+    /// at least the previous launch, so backdating is the honest setup — and
+    /// it is how these tests stop depending on how fast they run.
+    void backdate(String filename) {
+      store
+          .fileFor(filename)
+          .setLastModifiedSync(
+            DateTime.now().subtract(const Duration(days: 1)),
+          );
+    }
+
     test('finds files with no referencing row', () async {
       await store.save('kept', bytes);
       await store.save('orphan', bytes);
+      backdate('orphan.jpg');
 
       final orphans = await store.orphans(<String>{'kept.jpg'});
       expect(orphans, <String>{'orphan.jpg'});
+    });
+
+    test('will not touch a file written moments ago', () async {
+      // Decision 0020. A photo is written when it is taken, before the
+      // expense row exists, so an unreferenced file may simply be one the
+      // user is still in the middle of attaching.
+      await store.save('justtaken', bytes);
+
+      expect(await store.orphans(<String>{}), isEmpty);
+      expect(await store.sweepOrphans(<String>{}), 0);
+      expect(store.exists('justtaken.jpg'), isTrue);
     });
 
     test('finds nothing when every file is referenced', () async {
@@ -113,6 +138,7 @@ void main() {
     test('sweeping deletes orphans and keeps the rest', () async {
       await store.save('kept', bytes);
       await store.save('orphan', bytes);
+      backdate('orphan.jpg');
 
       expect(await store.sweepOrphans(<String>{'kept.jpg'}), 1);
       expect(store.exists('kept.jpg'), isTrue);
