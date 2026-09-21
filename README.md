@@ -228,6 +228,7 @@ receipt_tracker 0.5.2+1
 
 <details>
 <summary>dependencies:</summary>
+  
 - cupertino_icons 1.0.9
 - flutter 0.0.0 [characters collection material_color_utilities meta vector_math sky_engine]
 - flutter_local_notifications 22.3.1 [clock flutter flutter_local_notifications_linux flutter_local_notifications_windows flutter_local_notifications_web flutter_local_notifications_platform_interface timezone]
@@ -243,6 +244,7 @@ receipt_tracker 0.5.2+1
 
 <details>
 <summary>dev dependencies:</summary>
+  
 - flutter_launcher_icons 0.14.4 [args checked_yaml cli_util image json_annotation path yaml]
 - flutter_lints 6.0.0 [lints]
 - flutter_native_splash 2.4.8 [args flutter flutter_web_plugins html image meta path universal_io xml yaml ansicolor]
@@ -254,6 +256,7 @@ receipt_tracker 0.5.2+1
 
 <details>
 <summary>transitive dependencies:</summary>
+  
 - ansicolor 2.0.3
 - archive 4.3.0 [path posix]
 - args 2.7.0
