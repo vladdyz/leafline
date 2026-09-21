@@ -17,8 +17,12 @@ Built with **Flutter** for everything above the platform line and **Kotlin**
 for the two things Flutter cannot reach: on-device text recognition through
 ML Kit, and a home screen widget.
 
-<!-- Add some pix and GIFs later
--->
+![widget]((https://github.com/vladdyz/leafline/docs/images/widget.jpg))
+![home]((https://github.com/vladdyz/leafline/docs/images/home.jpg))
+![budget]((https://github.com/vladdyz/leafline/docs/images/budget.jpg))
+![history]((https://github.com/vladdyz/leafline/docs/images/history.jpg))
+![notifications]((https://github.com/vladdyz/leafline/docs/images/notifications.jpg))
+![alert]((https://github.com/vladdyz/leafline/docs/images/alert.jpg))
 
 ---
 
@@ -42,7 +46,7 @@ budget](#a-week-exists-because-it-has-a-budget).
 
 Fixed monthly obligations such as rent, car payments, insurance, and so on. Those are known,
 already budgeted, and would overshadow the weekly miscellaneous expense number this app exists to
-surface. There are plenty of financial planning and tracking apps available to use for goal, and it is not the niche that this one targets. Leaving them out is the point, not an omission.
+surface. There are plenty of financial planning and tracking apps available to use for this goal, and it is not the niche that this one targets. Leaving them out is the point, not an omission.
 
 ---
 
