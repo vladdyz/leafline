@@ -7,7 +7,7 @@
 ![Kotlin](https://img.shields.io/badge/Kotlin-7F52FF?logo=kotlin&logoColor=white)
 ![Android](https://img.shields.io/badge/Android-34A853?logo=android&logoColor=white)
 ![SQLite](https://img.shields.io/badge/SQLite-003B57?logo=sqlite&logoColor=white)
-![Coverage](https://img.shields.io/badge/coverage-76.2%25-green)
+![Coverage](https://img.shields.io/badge/coverage-83.0%25-brightgreen)
 
 A weekly miscellaneous expense tracker for Android. Log small spending (coffee, brunch, transit, etc) by hand or by
 photographing a receipt, see it grouped by week, and get warned once the
@@ -137,7 +137,7 @@ to test and a second implementation to port.
 
 ### Why not React Native, or native Android, or a web app
 
-As stated earlier, while the current version of the app is developed for my Android phone, the long term plan is cross-platform and iOS support. Using native android would've simplified some of the OCR and widget work, but shut the door on this vision. React was a consideration, but I simply chose Flutter because it is something I wanted to understand and work with. The widget testing for Flutter is also very robust and fast - this project has 434 tests largely due to this reason.
+As stated earlier, while the current version of the app is developed for my Android phone, the long term plan is cross-platform and iOS support. Using native android would've simplified some of the OCR and widget work, but shut the door on this vision. React was a consideration, but I simply chose Flutter because it is something I wanted to understand and work with. The widget testing for Flutter is also very robust and fast - this project has 465 tests largely due to this reason.
 
 A web app would also not be able accomplish several of the requirements set out by this app, or work offline on a phone in an area with no signal. If you put barriers and obstacles in front of a user, they will opt for the path of least resistance and not use your app to track their financial spending habits. Good habits should be made easy and accessible to reinforce them. 
 
@@ -162,7 +162,7 @@ repositories never import Flutter.
 
 **Every platform capability is an interface with at least two
 implementations** — the real one and a fake. That is not ceremony. It is what
-makes 434 tests possible without a device, and it is what makes the iOS answer
+makes 465 tests possible without a device, and it is what makes the iOS answer
 above a short list rather than a rewrite.
 
 ### A week exists because it has a budget
@@ -226,7 +226,8 @@ Dart SDK 3.13.3
 Flutter SDK 3.47.4
 receipt_tracker 0.5.2+1
 
-dependencies:
+<details>
+<summary>dependencies:</summary>
 - cupertino_icons 1.0.9
 - flutter 0.0.0 [characters collection material_color_utilities meta vector_math sky_engine]
 - flutter_local_notifications 22.3.1 [clock flutter flutter_local_notifications_linux flutter_local_notifications_windows flutter_local_notifications_web flutter_local_notifications_platform_interface timezone]
@@ -238,8 +239,10 @@ dependencies:
 - path_provider 2.1.6 [flutter path_provider_android path_provider_foundation path_provider_linux path_provider_platform_interface path_provider_windows]
 - sqflite 2.4.4 [flutter sqflite_android sqflite_darwin sqflite_platform_interface sqflite_common path]
 - uuid 4.6.0 [crypto fixnum]
+</details>
 
-dev dependencies:
+<details>
+<summary>dev dependencies:</summary>
 - flutter_launcher_icons 0.14.4 [args checked_yaml cli_util image json_annotation path yaml]
 - flutter_lints 6.0.0 [lints]
 - flutter_native_splash 2.4.8 [args flutter flutter_web_plugins html image meta path universal_io xml yaml ansicolor]
@@ -247,8 +250,10 @@ dev dependencies:
 - integration_test 0.0.0 [flutter flutter_driver flutter_test path vm_service]
 - mocktail 1.0.5 [collection matcher test_api]
 - sqflite_common_ffi 2.4.3 [sqlite3 sqflite_common synchronized path meta]
+</details>
 
-transitive dependencies:
+<details>
+<summary>transitive dependencies:</summary>
 - ansicolor 2.0.3
 - archive 4.3.0 [path posix]
 - args 2.7.0
@@ -352,7 +357,7 @@ transitive dependencies:
 - xdg_directories 1.1.0 [meta path]
 - xml 7.0.1 [collection meta petitparser]
 - yaml 3.1.4 [collection source_span string_scanner]
-
+</details>
 ---
 
 ## Getting started
@@ -387,7 +392,7 @@ Four commands, in this order, before every push:
 ```bash
 dart format .                      # fails CI if not run
 flutter analyze --fatal-infos      # infos are deliberately errors here
-flutter test                       # 434 tests
+flutter test                       # 465 tests
 flutter test integration_test      # needs a device; see the warning below
 ```
 
@@ -417,26 +422,30 @@ thing.
 
 ## Testing
 
-**434 Dart tests, 10 Kotlin tests, 76.2% line coverage** (1,469 / 1,928).
+**465 Dart tests, 10 Kotlin tests, 83.0% line coverage** (1,600 / 1,928).
 
 The distribution matters more than the number:
 
 | Layer | Coverage | |
 | --- | --- | --- |
 | `lib/util` — pure logic | **100%** | money, week maths, budget rules |
-| `lib/state` | 87.4% | providers |
+| `lib/state` | 89.2% | providers |
 | `lib/data` | 86.9% | repositories, database, image store |
-| `lib/models` | 81.3% | |
-| `lib/ui/screens` | 72.4% | |
+| `lib/ui` — widgets | 87.2% | |
+| `lib/ui` — screens | 82.4% | |
+| `lib/models` | 81.8% | |
 | `lib/services` | 65.8% | see below |
 
-`lib/services` is low **because of the architecture, not despite it**. The
+`lib/services` is low **because of the architecture**. The
 files at 0–40% are the thin real implementations behind the platform
 interfaces — `local_notification_service.dart` (0%), `channel_ocr_service.dart`
 (20%), `app_lock_service.dart` (38%). They cannot run without a device. What
-they wrap is tested through fakes, and the logic that matters —
+they wrap is tested through fakes, and the logic that matters:
 `budget_alert_service.dart`, `photo_retention_sweeper.dart`,
 `widget_snapshot_builder.dart` — is at **100%**.
+
+* main.dart and lock_screen.dart are excluded (flutter test only measures files it loads, and nothing in the unit suite imports either). The true figure across all of lib/ is therefore slightly below 83.0%.
+
 
 
 ### What the tests actually do
@@ -622,7 +631,7 @@ a major challenge. This is a large part of why the decision records and [`techni
 
 ### Possible future work
 
-- [ ] Close the coverage gaps
+- [x] Close the coverage gaps
 - [ ] Scheduled Monday summary notification
 - [ ] The growing-canopy visual identity (a `CustomPainter` that fills in
       across the week and resets Monday) - giving the user a nice and encouraging visual to reward their savings
