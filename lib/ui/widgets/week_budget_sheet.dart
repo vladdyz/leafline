@@ -84,7 +84,7 @@ class _WeekBudgetSheetState extends ConsumerState<WeekBudgetSheet> {
     final navigator = Navigator.of(context);
     await ref
         .read(weekBudgetRepositoryProvider)
-        .overrideWeek(widget.weekStart, cents);
+        .overrideWeek(widget.weekStart, cents, now: ref.read(nowProvider)());
     navigator.pop();
   }
 
@@ -93,7 +93,7 @@ class _WeekBudgetSheetState extends ConsumerState<WeekBudgetSheet> {
     final navigator = Navigator.of(context);
     await ref
         .read(weekBudgetRepositoryProvider)
-        .clearOverride(widget.weekStart);
+        .clearOverride(widget.weekStart, now: ref.read(nowProvider)());
     navigator.pop();
   }
 

@@ -246,7 +246,10 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
       // into an untracked week materialises that week at the current default,
       // which is the best answer available — there is no record of what the
       // budget was at the time.
-      await weeks.ensureWeek(_spentOn);
+      // The week comes from _spentOn, so `now` only stamps the row. Passed
+      // anyway: every clock-dependent call going through nowProvider is what
+      // makes "did this use the real clock?" a question nobody has to ask.
+      await weeks.ensureWeek(_spentOn, now: ref.read(nowProvider)());
 
       if (initial == null) {
         await expenses.insert(

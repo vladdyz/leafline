@@ -46,7 +46,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     // the default also updates the current week when that week has not been
     // given its own figure — a second write path to the same row would skip
     // that rule and quietly desynchronise the week in progress.
-    await ref.read(weekBudgetRepositoryProvider).setDefaultWeeklyCents(cents);
+    // `now` decides WHICH week row this touches — the rule is that saving a
+    // default updates the current week unless that week was overridden. Left
+    // off, it reads the wall clock instead of the injected one, so the write
+    // lands on whatever week the machine happens to be in.
+    //
+    // That passed locally and failed on CI for exactly one reason: Toronto is
+    // UTC-4, and after 8pm on a Sunday the runner is already in Monday's week.
+    await ref
+        .read(weekBudgetRepositoryProvider)
+        .setDefaultWeeklyCents(cents, now: ref.read(nowProvider)());
 
     if (!mounted) return;
     setState(() => _saving = false);
