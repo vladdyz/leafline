@@ -38,12 +38,14 @@ class LocalNotificationService implements NotificationService {
   Future<void> initialize() async {
     if (_initialized) return;
 
-    // Named parameters throughout: flutter_local_notifications 22 (platform
-    // interface 10) converted initialize, show and cancel from positional,
-    // and renamed show's `details` to `notificationDetails`.
     await _plugin.initialize(
       settings: const InitializationSettings(
-        android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+        // NOT '@mipmap/ic_launcher'. Android renders a status-bar icon from
+        // its alpha channel alone and paints the result white, so a full
+        // colour launcher icon arrives as a featureless white square. This
+        // is a white silhouette on transparent, at the five densities
+        // Android expects.
+        android: AndroidInitializationSettings('@drawable/ic_notification'),
       ),
     );
 

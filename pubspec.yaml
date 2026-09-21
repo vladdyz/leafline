@@ -44,6 +44,7 @@ dependencies:
   flutter_local_notifications: ^22.3.1
   local_auth: ^3.0.2
 
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -58,6 +59,8 @@ dev_dependencies:
   integration_test:
     sdk: flutter
   sqflite_common_ffi: ^2.4.3
+  flutter_native_splash: ^2.4.8
+  flutter_launcher_icons: ^0.14.4
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -100,3 +103,18 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/icon/icon.png"
+  adaptive_icon_background: "#E8F0EA"
+  adaptive_icon_foreground: "assets/icon/icon_foreground.png"
+
+flutter_native_splash:
+  color: "#E8F0EA"
+  image: assets/icon/icon_foreground.png
+  android_12:
+    color: "#E8F0EA"
+    image: assets/icon/icon_foreground.png
