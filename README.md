@@ -13,17 +13,20 @@ A weekly miscellaneous expense tracker for Android. Log small spending (coffee, 
 photographing a receipt, see it grouped by week, and get warned once the
 week's total approaches a budget you set.
 
-Built with **Flutter** for everything above the platform line and **Kotlin**
-for the two things Flutter cannot reach: on-device text recognition through
-ML Kit, and a home screen widget.
+Built almost entirely with **Flutter** except for the on-device text recognition through ML Kit and home screen widget which were developed using **Kotlin**
 
-![widget]((https://github.com/vladdyz/leafline/docs/images/widget.jpg))
-![home]((https://github.com/vladdyz/leafline/docs/images/home.jpg))
-![budget]((https://github.com/vladdyz/leafline/docs/images/budget.jpg))
-![history]((https://github.com/vladdyz/leafline/docs/images/history.jpg))
-![notifications]((https://github.com/vladdyz/leafline/docs/images/notifications.jpg))
-![alert]((https://github.com/vladdyz/leafline/docs/images/alert.jpg))
-
+<table>
+  <tr>
+    <td align="center"><img src="docs/images/widget.jpg" width="250"><br><sub>Home screen widget</sub></td>
+    <td align="center"><img src="docs/images/home.jpg" width="250"><br><sub>Week list</sub></td>
+    <td align="center"><img src="docs/images/history.jpg" width="250"><br><sub>History</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/images/budget.jpg" width="250"><br><sub>Budget bar</sub></td>
+    <td align="center"><img src="docs/images/notifications.jpg" width="250"><br><sub>Warning settings</sub></td>
+    <td align="center"><img src="docs/images/alert.jpg" width="250"><br><sub>Budget warning</sub></td>
+  </tr>
+</table>
 ---
 
 ## Why this exists
@@ -60,9 +63,9 @@ surface. There are plenty of financial planning and tracking apps available to u
   totals as tappable chips. It never auto-fills: see [Why chips, not
   autofill](#why-chips-not-autofill)
 - **Per-week budget overrides** for the weeks that are not like the others,
-  without disturbing your standing default
-- **Budget warnings** at 80% and at 100%, each firing at most once a week
-- **Photo retention** — photos expire on a schedule you choose; the expenses
+  without disturbing your standing default (enjoy your vacation week!)
+- **Budget warnings** at 80% and at 100%, each firing at most once a week (supports opt out by the user) 
+- **Photo retention** — photos expire on a user customized schedule (1 month, 3 months, 1 year, or indefinitely) to limit size bloat from frequent usage; the expenses
   never do
 - **Optional app lock** using fingerprint, face, or device PIN
 - **Home screen widget** showing the current week at a glance
@@ -73,7 +76,7 @@ surface. There are plenty of financial planning and tracking apps available to u
 
 ## Is this a cross-platform app?
 
-Honestly: **not yet, but the distance is short and specific.**
+Honestly: **not quite yet.**
 
 Flutter's promise is one codebase across platforms. Two features here needed
 capabilities Flutter has no plugin for, so they went through a `MethodChannel`
@@ -119,11 +122,11 @@ chips or a widget.
 
 They share no code, and that is deliberate.
 
-Flutter owns the UI, state, and persistence — one implementation, every
+Flutter owns the UI, state, and persistence — one implementation for every
 platform. Kotlin owns only what Flutter cannot reach. The line between them is
 narrow on purpose: two `MethodChannel`s, each with a documented contract.
 
-**The rule that keeps it narrow:** Kotlin returns *facts*, never *decisions*.
+**The rule that keeps it narrow:** Kotlin returns *facts* and never *decisions*.
 The OCR plugin returns recognised text and its geometry; deciding which number
 on a receipt is the total happens in Dart, in `TotalExtractor`, where it can
 be unit tested against fixture strings with no device involved. The widget
@@ -383,7 +386,7 @@ Four commands, in this order, before every push:
 
 ```bash
 dart format .                      # fails CI if not run
-flutter analyze --fatal-infos      # infos are errors here, deliberately
+flutter analyze --fatal-infos      # infos are deliberately errors here
 flutter test                       # 434 tests
 flutter test integration_test      # needs a device; see the warning below
 ```
@@ -399,7 +402,7 @@ A pre-commit hook in `hooks/` runs the formatter check. CI runs all of it.
 > **`flutter test integration_test` wipes the app's data.** It installs a test
 > harness alongside the app, and mismatched signatures force an uninstall
 > first — which takes the database and every receipt photo with it. Run it
-> against an emulator, not the install you actually use.
+> against an emulator and not the install you actually use (unless you want a clean app!).
 
 ### `--fatal-infos` is not excessive
 
