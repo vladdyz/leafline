@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
@@ -8,6 +10,7 @@ import 'package:receipt_tracker/state/providers.dart';
 import 'package:receipt_tracker/ui/screens/lock_screen.dart';
 import 'package:receipt_tracker/ui/screens/week_list_screen.dart';
 import 'package:receipt_tracker/ui/theme.dart';
+import 'package:receipt_tracker/ui/widgets/widget_snapshot_builder.dart';
 import 'package:sqflite/sqflite.dart';
 
 /// Opens the database and resolves the photo directory before the first
@@ -41,8 +44,7 @@ class HarvestApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title:
-          'LeafLine', // renamed from Canopy -> Harvest -> LeafLine (see docs)
+      title: 'Harvest',
       debugShowCheckedModeBanner: false,
       theme: HarvestTheme.light(),
       darkTheme: HarvestTheme.dark(),
@@ -137,8 +139,50 @@ class _StartupTasksState extends ConsumerState<_StartupTasks>
     await ref.read(imageStoreProvider).sweepOrphans(referenced);
   }
 
+  /// Keeps the home screen widget in step with the current week.
+  ///
+  /// Listening to `recentWeeksProvider` rather than calling the bridge from
+  /// each write path means every route that changes the week — adding an
+  /// expense, deleting one, changing a budget, the Monday rollover — pushes
+  /// without anyone having to remember to.
+  void _watchForWidget() {
+    ref.listen<AsyncValue<List<WeekView>>>(recentWeeksProvider, (_, next) {
+      final weeks = next.value;
+      if (weeks == null) return;
+
+      // The current week is the only one the widget shows. It is normally
+      // first, but the startup task that materialises it runs on a post-frame
+      // callback, so the list can briefly arrive without it.
+      WeekView? current;
+      for (final week in weeks) {
+        if (week.isCurrentWeek) {
+          current = week;
+          break;
+        }
+      }
+      if (current == null) return;
+
+      final bridge = ref.read(widgetBridgeProvider);
+      if (!bridge.isSupported) return;
+
+      unawaited(
+        bridge.push(
+          snapshotFor(
+            weekStart: current.weekStart,
+            weekEndDate: current.weekEndDate,
+            budgetCents: current.budgetCents,
+            totalCents: current.totalCents,
+          ),
+        ),
+      );
+    });
+  }
+
   @override
-  Widget build(BuildContext context) => widget.child;
+  Widget build(BuildContext context) {
+    _watchForWidget();
+    return widget.child;
+  }
 }
 
 /// Holds the app behind a device authentication prompt.

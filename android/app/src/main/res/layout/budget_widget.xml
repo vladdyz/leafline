@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  RemoteViews supports a deliberately small set of widgets. LinearLayout,
+  FrameLayout, RelativeLayout, TextView, ImageView, ProgressBar and Button
+  are in; ConstraintLayout is not, and neither is anything custom. A layout
+  that uses an unsupported view fails at inflate time on the home screen with
+  no error in the app.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="14dp"
+    android:background="@drawable/widget_background">
+
+    <TextView
+        android:id="@+id/widget_week"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:textSize="12sp"
+        android:textColor="@color/widget_muted"
+        android:text="@string/widget_empty_week" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:baselineAligned="true"
+        android:layout_marginTop="4dp">
+
+        <TextView
+            android:id="@+id/widget_spent"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:textColor="@color/widget_text"
+            android:text="@string/widget_empty_amount" />
+
+        <TextView
+            android:id="@+id/widget_budget"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:layout_marginStart="6dp"
+            android:textSize="13sp"
+            android:textColor="@color/widget_muted" />
+    </LinearLayout>
+
+    <ProgressBar
+        android:id="@+id/widget_progress"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="6dp"
+        android:layout_marginTop="8dp"
+        android:max="100"
+        android:progress="0" />
+
+    <TextView
+        android:id="@+id/widget_status"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:layout_marginTop="6dp"
+        android:textSize="13sp"
+        android:textColor="@color/widget_under"
+        android:text="@string/widget_empty_status" />
+</LinearLayout>

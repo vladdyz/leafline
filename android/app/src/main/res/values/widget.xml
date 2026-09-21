@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="widget_text">#1B1C1B</color>
+    <color name="widget_muted">#5B6560</color>
+    <color name="widget_under">#3F6B52</color>
+    <color name="widget_approaching">#B0790E</color>
+    <color name="widget_over">#A33A2C</color>
+
+    <string name="widget_description">This week\'s spending against your budget.</string>
+    <string name="widget_empty_week">Open LeafLine</string>
+    <string name="widget_empty_amount">—</string>
+    <string name="widget_empty_status">No data yet</string>
+</resources>

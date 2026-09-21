@@ -21,6 +21,7 @@ import 'package:receipt_tracker/services/notification_service.dart';
 import 'package:receipt_tracker/services/ocr_service.dart';
 import 'package:receipt_tracker/services/photo_retention_sweeper.dart';
 import 'package:receipt_tracker/services/photo_source.dart';
+import 'package:receipt_tracker/services/widget_bridge.dart';
 import 'package:receipt_tracker/util/budget_rules.dart';
 import 'package:receipt_tracker/util/week_math.dart';
 
@@ -77,6 +78,12 @@ final photoRetentionSweeperProvider = Provider<PhotoRetentionSweeper>((ref) {
     expenses: ref.watch(expenseRepositoryProvider),
     store: ref.watch(imageStoreProvider),
   );
+});
+
+final widgetBridgeProvider = Provider<WidgetBridge>((ref) {
+  return Platform.isAndroid
+      ? const ChannelWidgetBridge()
+      : const UnavailableWidgetBridge();
 });
 
 final appLockServiceProvider = Provider<AppLockService>((ref) {
