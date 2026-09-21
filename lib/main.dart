@@ -41,7 +41,8 @@ class HarvestApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Harvest',
+      title:
+          'LeafLine', // renamed from Canopy -> Harvest -> LeafLine (see docs)
       debugShowCheckedModeBanner: false,
       theme: HarvestTheme.light(),
       darkTheme: HarvestTheme.dark(),

@@ -54,7 +54,7 @@ class LocalAuthAppLockService implements AppLockService {
       // local_auth 3.0.0 removed AuthenticationOptions and moved its fields
       // onto authenticate() directly.
       return await _auth.authenticate(
-        localizedReason: 'Unlock Harvest to see your expenses',
+        localizedReason: 'Unlock LeafLine to see your expenses',
         // False on purpose, and the most important line here. A
         // biometric-only lock locks people out of their own data the first
         // time a wet thumb or a cracked sensor stops cooperating, and with no

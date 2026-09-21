@@ -29,7 +29,7 @@ class LockScreen extends StatelessWidget {
                 color: theme.colorScheme.outline,
               ),
               const SizedBox(height: 20),
-              Text('Harvest is locked', style: theme.textTheme.titleMedium),
+              Text('LeafLine is locked', style: theme.textTheme.titleMedium),
               const SizedBox(height: 8),
               Text(
                 'Unlock with your fingerprint, face or device PIN.',

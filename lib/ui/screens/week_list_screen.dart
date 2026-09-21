@@ -24,7 +24,7 @@ class WeekListScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Harvest'),
+        title: const Text('LeafLine'),
         actions: <Widget>[
           IconButton(
             icon: const Icon(Icons.calendar_month_outlined),
