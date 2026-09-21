@@ -3,7 +3,14 @@
     <color name="widget_text">#1B1C1B</color>
     <color name="widget_muted">#5B6560</color>
     <color name="widget_under">#3F6B52</color>
-    <color name="widget_approaching">#B0790E</color>
+    <!--
+      #8A5E0A, not #B0790E. The status line is 13sp — normal text, so it needs
+      4.5:1 against the widget background. The original amber managed 3.24:1,
+      which clears the 3:1 bar for large text and UI components but not this.
+      This is the first darker step that passes at 4.91:1 while still reading
+      as amber rather than brown.
+    -->
+    <color name="widget_approaching">#8A5E0A</color>
     <color name="widget_over">#A33A2C</color>
 
     <string name="widget_description">This week\'s spending against your budget.</string>

@@ -450,6 +450,11 @@ class _ExpenseFormScreenState extends ConsumerState<ExpenseFormScreen> {
             if (ref.read(photoSourceProvider).isAvailable)
               const SizedBox(height: 16),
             DropdownButtonFormField<ExpenseCategory>(
+              // Without isExpanded the dropdown sizes to its widest item and
+              // its internal Row — label plus arrow — overflows once the text
+              // grows. With it, the label takes the space that is actually
+              // available and ellipses, and the arrow stays where it belongs.
+              isExpanded: true,
               initialValue: _category,
               decoration: const InputDecoration(
                 labelText: 'Category',
@@ -513,10 +518,22 @@ class _DateField extends StatelessWidget {
           labelText: 'Date',
           border: OutlineInputBorder(),
         ),
+        // Expanded on the date, not on the icon. A Row overflows by throwing
+        // rather than wrapping, and "Wed, Sep 16, 2026" at 200% text scale is
+        // wider than a 360dp phone leaves for it.
+        //
+        // The date gives way because an ellipsed date is still a date; an
+        // icon pushed off the edge is just missing.
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: <Widget>[
-            Text(DateFormat.yMMMEd().format(value)),
+            Expanded(
+              child: Text(
+                DateFormat.yMMMEd().format(value),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 8),
             const Icon(Icons.calendar_today_outlined, size: 18),
           ],
         ),

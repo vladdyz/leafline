@@ -36,6 +36,10 @@ class ReceiptThumbnail extends ConsumerWidget {
           width: size,
           height: size,
           child: Image.file(
+            // Without this a screen reader announces nothing at all for the
+            // photo — not "image", not "unlabelled". It is skipped silently,
+            // so a blind user has no way to know a receipt is attached.
+            semanticLabel: 'Receipt photo',
             store.fileFor(photoFile),
             fit: BoxFit.cover,
             // Without this, a rebuild re-decodes the JPEG from disk on every
@@ -86,6 +90,10 @@ class PhotoViewScreen extends ConsumerWidget {
           minScale: 1,
           maxScale: 5,
           child: Image.file(
+            // Without this a screen reader announces nothing at all for the
+            // photo — not "image", not "unlabelled". It is skipped silently,
+            // so a blind user has no way to know a receipt is attached.
+            semanticLabel: 'Receipt photo',
             store.fileFor(photoFile),
             fit: BoxFit.contain,
             errorBuilder: (context, error, stack) => const Padding(
