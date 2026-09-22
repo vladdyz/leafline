@@ -9,9 +9,7 @@
 ![SQLite](https://img.shields.io/badge/SQLite-003B57?logo=sqlite&logoColor=white)
 ![Coverage](https://img.shields.io/badge/coverage-83.0%25-brightgreen)
 
-A weekly miscellaneous expense tracker for Android. Log small spending (coffee, brunch, transit, etc) by hand or by
-photographing a receipt, see it grouped by week, and get warned once the
-week's total approaches a budget you set.
+LeafLine is a mobile budget tracking app geared towards miscellaneous expenses, to help you stop spending so much of your budget on coffee and daily brunches. It helps you manage small expenses that can add up to take a large bite out of your savings, and allows for the setting of weekly budgets, historical tracking of spending, notifications when approaching or exceeding your budget, automatic receipt parsing via a machine learning kit, a home widget, and lock screen to prevent shoulder surfers from peeking at your purchases.  It works fully offline and stores your data locally, meaning you are free to use it in subways, office buildings, or the remote Canadian wilderness. 
 
 Built almost entirely with **Flutter** except for the on-device text recognition through ML Kit and home screen widget which were developed using **Kotlin**
 
@@ -27,6 +25,9 @@ Built almost entirely with **Flutter** except for the on-device text recognition
     <td align="center"><img src="docs/images/alert.jpg" width="250"><br><sub>Budget warning</sub></td>
   </tr>
 </table>
+
+Live video: [Here](https://www.youtube.com/shorts/QKHf3tJRcFg)
+
 ---
 
 ## Why this exists
