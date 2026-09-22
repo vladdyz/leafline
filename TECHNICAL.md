@@ -398,14 +398,14 @@ sequenceDiagram
     F->>P: capture()
     P-->>F: bytes (or PhotoFailure)
     F->>S: save(id, bytes)
-    S-->>F: "<id>.jpg"
-    Note over S: file exists; no row references it yet
+    S-->>F: expenseId.jpg
+    Note over S: file exists, but no row references it yet
     F->>O: recognize(path)
     O->>K: recognizeText {path}
     K->>M: InputImage.fromFilePath
     M-->>K: Text blocks
     K-->>O: [{text,left,top,width,height}]
-    O-->>F: List<OcrBlock>
+    O-->>F: a list of OcrBlock
     F->>X: extract(blocks)
     X-->>F: ranked candidates
     F-->>U: chips — $7.06, $3.50, $2.75
